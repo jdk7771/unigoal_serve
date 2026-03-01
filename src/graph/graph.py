@@ -198,8 +198,10 @@ class Graph():
         
         self.groundingdino_config_file = 'third_party/Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py'
         self.groundingdino_checkpoint = 'data/models/groundingdino_swint_ogc.pth'
-        self.sam_version = 'vit_h'
-        self.sam_checkpoint = 'data/models/sam_vit_h_4b8939.pth'
+        # self.sam_version = 'vit_h'
+        self.sam_version = 'vit_b'
+        self.sam_checkpoint = 'data/models/sam_vit_b_01ec64.pth'
+        # self.sam_checkpoint = 'data/models/sam_vit_h_4b8939.pth'
         self.segment2d_results = []
         self.max_detections_per_object = 10
         self.threshold_list = {'bathtub': 3, 'bed': 3, 'cabinet': 2, 'chair': 1, 'chest_of_drawers': 3, 'clothes': 2, 'counter': 1, 'cushion': 3, 'fireplace': 3, 'gym_equipment': 2, 'picture': 3, 'plant': 3, 'seating': 0, 'shower': 2, 'sink': 2, 'sofa': 2, 'stool': 2, 'table': 1, 'toilet': 3, 'towel': 2, 'tv_monitor': 0}
