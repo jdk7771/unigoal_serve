@@ -4,6 +4,7 @@ import json
 import logging
 import time
 import yaml
+import csv
 from collections import deque, defaultdict
 from types import SimpleNamespace
 import numpy as np
@@ -70,6 +71,12 @@ def main():
     episode_success = deque(maxlen=args.num_episodes)
     episode_spl = deque(maxlen=args.num_episodes)
 
+    # Initialize episode results file
+    episode_results_file = os.path.join(args.log_dir, 'episode_results.csv')
+    with open(episode_results_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['episode_no', 'success', 'spl', 'distance_to_goal', 'steps', 'goal_name'])
+
     finished = False
     wait_env = False
 
@@ -134,10 +141,24 @@ def main():
             eval_metrics_id += 1
             episode_success.append(success)
             episode_spl.append(spl)
+
+            # Log episode results to CSV
+            with open(episode_results_file, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    infos['episode_no'],
+                    success,
+                    spl,
+                    infos.get('distance_to_goal', 'N/A'),
+                    infos.get('time', 'N/A'),
+                    infos.get('goal_name', 'N/A')
+                ])
+
             if len(episode_success) == args.num_episodes:
                 finished = True
             if args.visualize:
-                video_path = os.path.join(args.visualization_dir, 'videos', 'eps_{:0>6}.mp4'.format(infos['episode_no']))
+                status = 's1' if success > 0 else 's0'
+                video_path = os.path.join(args.visualization_dir, 'videos', 'eps_{:0>6}_{}.mp4'.format(infos['episode_no'], status))
                 agent.save_visualization(video_path)
             wait_env = True
             BEV_map.update_intrinsic_rew()
