@@ -42,6 +42,7 @@ class InstanceImageGoal_Env:
 
         self.name2index = name2index
         self.index2name = {v: k for k, v in self.name2index.items()}
+        self.rank = 0
         if self.args.goal_type == 'text':
             with gzip.open(self.args.text_goal_dataset, 'rt') as f:
                 self.text_goal_dataset = json.load(f)
