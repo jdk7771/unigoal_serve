@@ -75,7 +75,7 @@ def main():
     episode_results_file = os.path.join(args.log_dir, 'episode_results.csv')
     with open(episode_results_file, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['episode_no', 'success', 'spl', 'distance_to_goal', 'steps', 'goal_name'])
+        writer.writerow(['episode_no', 'success', 'spl', 'distance_to_goal', 'steps', 'goal_name', 'termination_reason'])
 
     finished = False
     wait_env = False
@@ -146,13 +146,24 @@ def main():
             # Log episode results to CSV
             with open(episode_results_file, 'a', newline='') as f:
                 writer = csv.writer(f)
+                
+                # Determine termination reason for CSV
+                reason = "UNKNOWN"
+                if success > 0:
+                    reason = "SUCCESS"
+                elif last_action == 0:
+                    reason = "WRONG_STOP"
+                elif infos.get('time', 0) >= args.max_episode_length - 5:
+                    reason = "TIMEOUT"
+                
                 writer.writerow([
                     infos['episode_no'],
                     success,
                     spl,
                     infos.get('distance_to_goal', 'N/A'),
                     infos.get('time', 'N/A'),
-                    infos.get('goal_name', 'N/A')
+                    infos.get('goal_name', 'N/A'),
+                    reason
                 ])
 
             if args.visualize:
