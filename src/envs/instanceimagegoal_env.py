@@ -177,6 +177,16 @@ class InstanceImageGoal_Env:
             self.info['spl'] = spl
             self.info['success'] = success
             self.info['soft_spl'] = soft_spl
+            
+            # --- DEBUG: Find out why it finished ---
+            if self.stopped:
+                self.info['env_done_reason'] = "AGENT_CALLED_STOP"
+            elif self.timestep >= self.args.max_episode_length - 1:
+                self.info['env_done_reason'] = "ENV_MAX_STEPS_REACHED"
+            else:
+                # If neither stop nor max_steps, it might be a collision or other simulator limit
+                self.info['env_done_reason'] = "SIMULATOR_INTERNAL_LIMIT"
+            # ---------------------------------------
 
         self.timestep += 1
         self.info['time'] = self.timestep

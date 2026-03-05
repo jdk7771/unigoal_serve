@@ -86,6 +86,8 @@ class UniGoal_Agent():
             self.vis_image_list = []
             self.step_trace = []
             self.last_match_points = 0
+        
+        self.last_episode_trace = []
 
     def reset(self):
         args = self.args
@@ -429,6 +431,8 @@ class UniGoal_Agent():
             self.rgbd = rgbd
 
             if done:
+                # Preserve the trace of the episode that just finished
+                self.last_episode_trace = self.step_trace.copy()
                 # IMPORTANT: Copy final info of the ENDED episode
                 final_info = self.envs.info.copy()
                 # Return new state but OLD episode's final info for logging
@@ -887,10 +891,11 @@ class UniGoal_Agent():
             reason = "SUCCESS"
         elif last_action == 0:
             reason = "WRONG_STOP" # Agent called Stop but didn't actually reach
-        elif infos.get('time', 0) >= 495:
+        elif infos.get('time', 0) >= self.args.max_episode_length - 5:
             reason = "TIMEOUT"
         else:
-            reason = "FAILED_OTHER"
+            # Use the detailed reason from environment if available
+            reason = infos.get('env_done_reason', "FAILED_OTHER")
 
         log_data = {
             'summary': {
@@ -901,14 +906,18 @@ class UniGoal_Agent():
                 'distance_to_goal': infos.get('distance_to_goal', 'N/A'),
                 'total_steps': infos.get('time', 0),
                 'termination_reason': reason,
+                'env_internal_reason': infos.get('env_done_reason', 'N/A'),
                 'last_action': last_action
             },
-            'trace': self.step_trace
+            'trace': self.last_episode_trace # Use the preserved trace
         }
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
         
         with open(log_path, 'w') as f:
             json.dump(log_data, f, indent=2)
         
-        # Clear trace for next episode
-        self.step_trace = []
+        # Clear backup for safety
+        self.last_episode_trace = []
         return reason
