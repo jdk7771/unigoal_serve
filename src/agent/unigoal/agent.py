@@ -84,6 +84,8 @@ class UniGoal_Agent():
             self.vis_image_background = None
             self.rgb_vis = None
             self.vis_image_list = []
+            self.step_trace = []
+            self.last_match_points = 0
 
     def reset(self):
         args = self.args
@@ -131,6 +133,8 @@ class UniGoal_Agent():
 
         if args.visualize:
             self.vis_image_background = init_vis_image(self.envs.goal_name, self.args)
+            self.step_trace = []
+            self.last_match_points = 0
 
         return obs, rgbd, info
 
@@ -147,11 +151,14 @@ class UniGoal_Agent():
                 b = torch.nonzero(matches[..., 0] < 2048, as_tuple=False)
                 c = torch.index_select(matches[..., 0], dim=0, index=b.squeeze())
                 points0 = feats0['keypoints'][c]
+                # Store match points for logging
+                self.last_match_points = points0.shape[0]
                 if re_key2:
                     return (points0.numpy(), feats1['keypoints'][c].numpy())
                 else:
                     return points0.numpy()  
             except:
+                self.last_match_points = 0
                 if re_key2:
                     # print(f'{self.env.rank}  {self.env.timestep}  h')
                     return (np.zeros((1, 2)), np.zeros((1, 2)))
@@ -375,6 +382,14 @@ class UniGoal_Agent():
         id_lo_whwh_speci = [id_lo_whwh[i] for i in range(len(id_lo_whwh)) \
                     if id_lo_whwh[i][0] == self.envs.gt_goal_idx]
 
+        # Record detections for debugging
+        self.current_detections = []
+        for det in id_lo_whwh:
+            self.current_detections.append({
+                'id': int(det[0]),
+                'conf': float(det[1]),
+                'bbox': det[2].tolist()
+            })
 
         agent_input["found_goal"] = (id_lo_whwh_speci != [])
 
@@ -384,20 +399,41 @@ class UniGoal_Agent():
 
         if self.args.visualize:
             self.visualize(agent_input)
+            # Record detailed trace for debugging
+            trace_entry = {
+                'step': self.envs.timestep,
+                'action': action,
+                'found_goal': int(agent_input.get('found_goal', 0)),
+                'match_points': getattr(self, 'last_match_points', 0),
+                'pose': [round(p, 3) for p in self.curr_loc],
+                'detections': self.current_detections, # Record everything MaskRCNN saw
+                'goal_name': self.envs.goal_name,
+                'stuck': self.been_stuck
+            }
+            self.step_trace.append(trace_entry)
 
         if action >= 0:
-            action = {'action': action}
-            obs, done, info = self.envs.step(action)
+            action_dict = {'action': action}
+            obs, done, info = self.envs.step(action_dict)
+            
+            # Capture final stats before processing next frame
+            self.envs.info['last_action'] = action
+            self.envs.info['rank'] = self.envs.rank
+
             rgbd = np.concatenate((obs['rgb'].astype(np.uint8), obs['depth']), axis=2).transpose(2, 0, 1)
             self.raw_obs = rgbd[:3, :, :].transpose(1, 2, 0)
             self.raw_depth = rgbd[3:4, :, :]
 
             rgbd, seg_predictions = self.preprocess_obs(rgbd) 
-            self.last_action = action['action']
+            self.last_action = action_dict['action']
             self.rgbd = rgbd
 
             if done:
-                obs, rgbd, info = self.reset()
+                # IMPORTANT: Copy final info of the ENDED episode
+                final_info = self.envs.info.copy()
+                # Return new state but OLD episode's final info for logging
+                new_obs, new_rgbd, new_info = self.reset()
+                return new_obs, new_rgbd, done, final_info
 
             return obs, rgbd, done, self.envs.info
 
@@ -841,3 +877,38 @@ class UniGoal_Agent():
     def save_visualization(self, video_path):
         save_video(self.vis_image_list, video_path, fps=15, input_color_space="BGR")
         self.vis_image_list = []
+
+    def save_detailed_log(self, log_path, infos, last_action):
+        import json
+        
+        # 1. Determine termination reason
+        success = infos.get('success', 0)
+        if success > 0:
+            reason = "SUCCESS"
+        elif last_action == 0:
+            reason = "WRONG_STOP" # Agent called Stop but didn't actually reach
+        elif infos.get('time', 0) >= 495:
+            reason = "TIMEOUT"
+        else:
+            reason = "FAILED_OTHER"
+
+        log_data = {
+            'summary': {
+                'episode_no': infos.get('episode_no'),
+                'goal_name': infos.get('goal_name'),
+                'success': success,
+                'spl': infos.get('spl', 0),
+                'distance_to_goal': infos.get('distance_to_goal', 'N/A'),
+                'total_steps': infos.get('time', 0),
+                'termination_reason': reason,
+                'last_action': last_action
+            },
+            'trace': self.step_trace
+        }
+        
+        with open(log_path, 'w') as f:
+            json.dump(log_data, f, indent=2)
+        
+        # Clear trace for next episode
+        self.step_trace = []
+        return reason

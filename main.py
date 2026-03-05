@@ -117,6 +117,7 @@ def main():
                                             ].argmax(0).cpu().numpy()
 
     obs, rgbd, done, infos = agent.step(agent_input)
+    last_action = -1 # Initialize last_action
 
     graph.reset()
     graph.set_obj_goal(infos['goal_name'])
@@ -154,12 +155,19 @@ def main():
                     infos.get('goal_name', 'N/A')
                 ])
 
+            if args.visualize:
+                # Save detailed JSON log and get termination reason
+                log_path = os.path.join(args.visualization_dir, 'videos', 'eps_{:0>6}.json'.format(infos['episode_no']))
+                reason = agent.save_detailed_log(log_path, infos, last_action)
+                
+                # Save video with reason in filename
+                status = 's1' if success > 0 else 's0'
+                video_name = 'eps_{:0>6}_{}_{}.mp4'.format(infos['episode_no'], status, reason)
+                video_path = os.path.join(args.visualization_dir, 'videos', video_name)
+                agent.save_visualization(video_path)
+
             if len(episode_success) == args.num_episodes:
                 finished = True
-            if args.visualize:
-                status = 's1' if success > 0 else 's0'
-                video_path = os.path.join(args.visualization_dir, 'videos', 'eps_{:0>6}_{}.mp4'.format(infos['episode_no'], status))
-                agent.save_visualization(video_path)
             wait_env = True
             BEV_map.update_intrinsic_rew()
             BEV_map.init_map_and_pose_for_env()
@@ -232,6 +240,8 @@ def main():
                                                 :].argmax(0).cpu().numpy()
 
         obs, rgbd, done, infos = agent.step(agent_input)
+        if not agent_input["wait"]:
+            last_action = infos.get('last_action', -1) # Need to make sure agent returns this or we get it from env
 
         # ------------------------------------------------------------------
 
