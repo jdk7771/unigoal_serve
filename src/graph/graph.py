@@ -193,6 +193,10 @@ class Graph():
         self.edge_list = []
         self.group_nodes = []
         self.init_room_nodes()
+        self.scenegraph = None
+        self.goalgraph = None
+        self.goalgraph_decomposed = None
+        self.matcher = None
         self.is_navigation = is_navigation
         self.set_cfg()
         
@@ -696,7 +700,9 @@ Please provide the relationship you can determine from the image.
 
     def explore(self):
         overlap = self.overlap()
-        if 0.5 <= overlap < 0.9 and len(self.matcher.common_nodes) >= 2:
+        if self.matcher is None:
+            goal = self.explore_subgraph()
+        elif 0.5 <= overlap < 0.9 and len(self.matcher.common_nodes) >= 2:
             goal = self.explore_remaining()
         elif overlap >= 0.9 and len(self.matcher.common_nodes) < 2:
             goal = self.reasonableness_correction()
@@ -709,6 +715,8 @@ Please provide the relationship you can determine from the image.
 
     def explore_subgraph(self, goal=None):
         if goal == None:
+            if self.goalgraph_decomposed is None or 'subgraph_1' not in self.goalgraph_decomposed:
+                return self.insert_goal()
             self.subgraph = self.goalgraph_decomposed['subgraph_1']
         self.subgraph = self.goalgraphdecomposer.graph_to_text(self.subgraph)
         return self.insert_goal(self.subgraph)
@@ -716,6 +724,9 @@ Please provide the relationship you can determine from the image.
     def overlap(self):
         graph1 = self.scenegraph
         graph2 = self.goalgraph
+        if graph1 is None or graph2 is None:
+            self.matcher = None
+            return 0.0
         self.matcher = GraphMatcher(graph1, graph2, self.llm)
         overlap_score = self.matcher.overlap()
         return overlap_score
