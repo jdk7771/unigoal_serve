@@ -60,6 +60,7 @@ def main():
 
     os.makedirs(args.log_dir, exist_ok=True)
     os.makedirs(args.visualization_dir, exist_ok=True)
+    os.makedirs(os.path.join(args.visualization_dir, 'videos'), exist_ok=True)
 
     logging.basicConfig(
         filename=os.path.join(args.log_dir, 'eval.log'),
