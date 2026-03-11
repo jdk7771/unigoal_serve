@@ -68,7 +68,12 @@ map_size_cm: 3600
 map_resolution: 5
 
 # LLM and VLM
-llm_model: "llama3.2-vision"
-vlm_model: "llama3.2-vision"
-api_key: "ollama"
-base_url: "http://localhost:11434/v1/"
+# llm_model: "llama3.2-vision"
+# vlm_model: "llama3.2-vision"
+# api_key: "ollama"
+# base_url: "http://localhost:11434/v1/"
+
+llm_model: "qwen-plus"                # 负责逻辑推理、图分解
+vlm_model: "qwen-vl-max"             # 负责视觉识别、空间关系判断
+api_key: "sk-1e74cd6675a6404b9811ee09fc49a50d"      # 填入你申请的以 sk- 开头的密钥
+base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1" # 阿里云的 OpenAI 兼容接口

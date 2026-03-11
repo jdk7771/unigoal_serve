@@ -1,4 +1,5 @@
 import base64
+import httpx
 from openai import OpenAI
 from io import BytesIO
 
@@ -8,9 +9,15 @@ class LLM:
         self.base_url = base_url
         self.api_key = api_key
         self.llm_model = llm_model
+        # Use a clean http_client to ignore system proxies
+        self.http_client = httpx.Client(trust_env=False)
 
     def __call__(self, prompt):
-        client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        client = OpenAI(
+            api_key=self.api_key, 
+            base_url=self.base_url,
+            http_client=self.http_client
+        )
         chat_completion = client.chat.completions.create(
             messages=[
                 {
@@ -28,6 +35,8 @@ class VLM:
         self.base_url = base_url
         self.api_key = api_key
         self.vlm_model = vlm_model
+        # Use a clean http_client to ignore system proxies
+        self.http_client = httpx.Client(trust_env=False)
 
     def __call__(self, prompt, image):
         buffered = BytesIO()
@@ -35,7 +44,11 @@ class VLM:
         image_bytes = base64.b64encode(buffered.getvalue())
         image_str = str(image_bytes, 'utf-8')
 
-        client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        client = OpenAI(
+            api_key=self.api_key, 
+            base_url=self.base_url,
+            http_client=self.http_client
+        )
         chat_completion = client.chat.completions.create(
             messages=[
                 {

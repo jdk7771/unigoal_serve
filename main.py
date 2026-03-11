@@ -190,7 +190,7 @@ def main():
                 graph.set_image_goal(infos['instance_imagegoal'])
             elif args.goal_type == 'text':
                 graph.set_text_goal(infos['text_goal'])
-
+            step = 0
         BEV_map.mapping(rgbd, infos)
 
         navigate_steps = global_step * args.num_local_steps + local_step
@@ -200,7 +200,7 @@ def main():
             graph.update_scenegraph()
 
         # ------------------------------------------------------------------
-
+        #每num_local_steps调用一次选择高层目标
         # ------------------------------------------------------------------
         if local_step == args.num_local_steps - 1 or np.linalg.norm(np.array([BEV_map.local_row, BEV_map.local_col]) - np.array(global_goals)) < 10:
             if wait_env == True:
