@@ -213,6 +213,8 @@ def main():
             graph.set_full_map(BEV_map.full_map)
             graph.set_full_pose(BEV_map.full_pose)
             goal = graph.explore()
+            agent.last_graph_decision = getattr(graph, 'last_reasoning', "Moving")
+            
             if hasattr(graph, 'frontier_locations_16'):
                 graph.frontier_locations_16[:, 0] = graph.frontier_locations_16[:, 0] - BEV_map.local_map_boundary[0, 0]
                 graph.frontier_locations_16[:, 1] = graph.frontier_locations_16[:, 1] - BEV_map.local_map_boundary[0, 2]

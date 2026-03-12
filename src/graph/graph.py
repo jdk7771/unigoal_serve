@@ -257,6 +257,7 @@ Please provide the relationship you can determine from the image.
         self.goalgraphdecomposer = GoalGraphDecomposer(self.llm)
         self.extractor = DISK(max_num_keypoints=2048).eval().to(self.device)
         self.image_matcher = LightGlue(features='disk').eval().to(self.device)
+        self.last_reasoning = "None"
 
     def set_cfg(self):
         cfg = {'dataset_config': PosixPath('tools/replica.yaml'), 'scene_id': 'room0', 'start': 0, 'end': -1, 'stride': 5, 'image_height': 680, 'image_width': 1200, 'gsa_variant': 'none', 'detection_folder_name': 'gsa_detections_${gsa_variant}', 'det_vis_folder_name': 'gsa_vis_${gsa_variant}', 'color_file_name': 'gsa_classes_${gsa_variant}', 'device': 'cuda', 'use_iou': True, 'spatial_sim_type': 'overlap', 'phys_bias': 0.0, 'match_method': 'sim_sum', 'semantic_threshold': 0.5, 'physical_threshold': 0.5, 'sim_threshold': 1.2, 'use_contain_number': False, 'contain_area_thresh': 0.95, 'contain_mismatch_penalty': 0.5, 'mask_area_threshold': 25, 'mask_conf_threshold': 0.95,
@@ -672,6 +673,10 @@ Please provide the relationship you can determine from the image.
         prompt = self.prompt_room_predict.format(goal, room_node_text)
         response = self.llm(prompt=prompt)
         response = response.lower()
+        
+        # 核心决策日志
+        print(f"[{self.navigate_steps}] 🔍 Goal [{goal}] matching: Rooms [{room_node_text[:-1]}] -> LLM chose [{response.strip()}]")
+
         predict_room_node = None
         for room_node in self.room_nodes:
             if len(room_node.group_nodes) > 0 and room_node.caption.lower() in response:
@@ -683,6 +688,11 @@ Please provide the relationship you can determine from the image.
             group_node.corr_score = corr_score
         sorted_group_nodes = sorted(predict_room_node.group_nodes)
         self.mid_term_goal = sorted_group_nodes[-1].center
+        
+        # 匹配成功日志
+        print(f"[{self.navigate_steps}] ✅ Match: Found in {predict_room_node.caption} (Score: {sorted_group_nodes[-1].corr_score:.2f})")
+        self.last_reasoning = f"Match: Found in {predict_room_node.caption} Score {sorted_group_nodes[-1].corr_score:.2f}"
+        
         return self.mid_term_goal
     
     def update_scenegraph(self):
@@ -858,6 +868,11 @@ Please provide the relationship you can determine from the image.
         idx_16_max = idx_16[0][np.argmax(scores)]
         goal = frontier_locations[idx_16_max] - 1
         self.scores = scores
+        
+        # 记录探索决策
+        dist = distances[idx_16_max]
+        self.last_reasoning = f"Exploration: Heading to frontier at {dist:.1f}m"
+        
         return goal
 
     def get_traversible(self, map_pred, pose_pred):

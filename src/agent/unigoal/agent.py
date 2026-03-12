@@ -378,20 +378,7 @@ class UniGoal_Agent():
             self.envs.info["sensor_pose"] = [0., 0., 0.]
             return None, np.zeros(self.rgbd.shape), False, self.envs.info
 
-        id_lo_whwh = self.pred_box
-
-
-        id_lo_whwh_speci = [id_lo_whwh[i] for i in range(len(id_lo_whwh)) \
-                    if id_lo_whwh[i][0] == self.envs.gt_goal_idx]
-
-        # Record detections for debugging
-        self.current_detections = []
-        for det in id_lo_whwh:
-            self.current_detections.append({
-                'id': int(det[0]),
-                'conf': float(det[1]),
-                'bbox': det[2].tolist()
-            })
+        id_lo_whwh_speci = [det for det in self.pred_box if det[0] == self.envs.gt_goal_idx]
 
         agent_input["found_goal"] = (id_lo_whwh_speci != [])
 
@@ -405,11 +392,10 @@ class UniGoal_Agent():
             trace_entry = {
                 'step': self.envs.timestep,
                 'action': action,
-                'found_goal': int(agent_input.get('found_goal', 0)),
+                'decision': getattr(self, 'last_graph_decision', "Exploration"), # From Graph class
+                'goal_seen': int(id_lo_whwh_speci != []),
                 'match_points': getattr(self, 'last_match_points', 0),
                 'pose': [round(p, 3) for p in self.curr_loc],
-                'detections': self.current_detections, # Record everything MaskRCNN saw
-                'goal_name': self.envs.goal_name,
                 'stuck': self.been_stuck
             }
             self.step_trace.append(trace_entry)
