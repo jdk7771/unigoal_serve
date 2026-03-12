@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "episode_no": 34,
+    "goal_name": "sofa",
+    "success": 1.0,
+    "spl": 0.27033541162639035,
+    "distance_to_goal": 0.3168749511241913,
+    "total_steps": 244,
+    "termination_reason": "SUCCESS",
+    "last_action": 0
+  },
+  "trace": []
+}

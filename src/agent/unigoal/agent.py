@@ -868,6 +868,22 @@ class UniGoal_Agent():
                  int(color_palette[9] * 255))
         cv2.drawContours(vis_image, [agent_arrow], 0, color, -1)
 
+        # ------------------------------------------------------------------
+        # Add Step and Action text overlay for easier debugging
+        action_names = ["STOP", "FORWARD", "LEFT", "RIGHT", "LOOK_UP", "LOOK_DOWN"]
+        if self.last_action is not None and 0 <= self.last_action < len(action_names):
+            action_name = action_names[self.last_action]
+        else:
+            action_name = "NONE"
+        
+        # Draw a semi-transparent background for the text
+        cv2.rectangle(vis_image, (20, 5), (450, 45), (0, 0, 0), -1)
+        # Add the text: Step and Last Action
+        text = f"STEP: {self.envs.timestep:03d} | ACTION: {action_name}"
+        cv2.putText(vis_image, text, (30, 33), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        # ------------------------------------------------------------------
+
         self.vis_image_list.append(vis_image)
         tmp_dir = 'outputs/tmp'
         os.makedirs(tmp_dir, exist_ok=True)
