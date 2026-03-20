@@ -93,6 +93,15 @@ def main():
     BEV_map.init_map_and_pose()
     obs, rgbd, infos = agent.reset()
 
+    graph.reset()
+    graph.set_obj_goal(infos['goal_name'])
+    if args.goal_type == 'ins-image':
+        graph.set_image_goal(infos['instance_imagegoal'])
+    elif args.goal_type == 'text':
+        graph.set_text_goal(infos['text_goal'])
+
+    step = 0
+    
     BEV_map.mapping(rgbd, infos)
 
     global_goals = [args.local_width // 2, args.local_height // 2]
@@ -154,14 +163,7 @@ def main():
     obs, rgbd, done, infos = agent.step(agent_input)
     last_action = -1 # Initialize last_action
 
-    graph.reset()
-    graph.set_obj_goal(infos['goal_name'])
-    if args.goal_type == 'ins-image':
-        graph.set_image_goal(infos['instance_imagegoal'])
-    elif args.goal_type == 'text':
-        graph.set_text_goal(infos['text_goal'])
 
-    step = 0
 
     while True:
         if finished == True:
