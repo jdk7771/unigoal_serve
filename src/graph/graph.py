@@ -850,6 +850,7 @@ Please provide the relationship you can determine from the image.
         scores = np.zeros((num_16_frontiers))
         
         scores += distances_16_inverse
+        
         if isinstance(goal, list) or isinstance(goal, np.ndarray):
             goal = list(goal)
 
