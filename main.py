@@ -117,6 +117,10 @@ def main():
         
         if args.visualize:
             id_lo_whwh_speci = [det for det in agent.pred_box if det[0] == agent.envs.gt_goal_idx]
+
+            BEV_map.local_map[0, 10, :, :] = 1e-5
+            sem_map_pred = BEV_map.local_map[0, 4:11, :, :].argmax(0).cpu().numpy()
+
             look_input = {
                 'map_pred': BEV_map.local_map[0, 0, :, :].cpu().numpy(),
                 'exp_pred': BEV_map.local_map[0, 1, :, :].cpu().numpy(),
@@ -124,7 +128,7 @@ def main():
                 'goal': goal_maps,
                 'found_goal': int(len(id_lo_whwh_speci) > 0),
                 'wait': False,
-                'sem_map': BEV_map.local_map[0, 4:11, :, :].cpu().numpy()
+                'sem_map_pred': sem_map_pred
             }
             agent.visualize(look_input)
 
