@@ -179,4 +179,6 @@ Environment:
       journal={arXiv preprint arXiv:2503.10630},
       year={2025}
 }
-```
+```python main.py --goal_type text --episode_id 32
+
+

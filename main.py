@@ -94,27 +94,42 @@ def main():
     obs, rgbd, infos = agent.reset()
 
     BEV_map.mapping(rgbd, infos)
-    """
-    环视阶段
-    """
-    print("——————正在初始环视，构建二维地图和语义场景图")
-    for i in range(int(360//args.look_angle)):
-        obs,done,infos = envs.step({'action':3})
-        rgbd_raw =np.concatenate((obs['rgb'].astype(np.uint8),obs['depth']), axis=2).transpose(2, 0, 1)
-        rgbd, _ = agent.preprocess_obs(rgbd_raw)
-        agent.rgbd = rgbd
-        BEV_map.mapping(rgbd, infos)
-        graph.set_observations(obs)
-        graph.update_scenegraph()
-        id_lo_whwh_speci = [det for det in agent.pred_box if det[0] == agent.envs.gt_goal_idx]
-    print(">>环视结束")
-
 
     global_goals = [args.local_width // 2, args.local_height // 2]
-
     goal_maps = np.zeros((args.local_width, args.local_height))
-
     goal_maps[global_goals[0], global_goals[1]] = 1
+
+    print("——————正在初始环视，构建二维地图和语义场景图")
+    graph.set_navigate_steps(0) 
+    num_rotations = int(360 // args.look_angle)
+    
+    for i in range(num_rotations):
+        obs, done, infos = envs.step({'action': 3})
+        
+        rgbd_raw = np.concatenate((obs['rgb'].astype(np.uint8), obs['depth']), axis=2).transpose(2, 0, 1)
+        rgbd, _ = agent.preprocess_obs(rgbd_raw)
+        agent.rgbd = rgbd
+        
+        BEV_map.mapping(rgbd, infos)
+        graph.set_observations(obs)
+        graph.set_navigate_steps(i) 
+        graph.update_scenegraph()
+        
+        if args.visualize:
+            id_lo_whwh_speci = [det for det in agent.pred_box if det[0] == agent.envs.gt_goal_idx]
+            look_input = {
+                'map_pred': BEV_map.local_map[0, 0, :, :].cpu().numpy(),
+                'exp_pred': BEV_map.local_map[0, 1, :, :].cpu().numpy(),
+                'pose_pred': BEV_map.planner_pose_inputs[0],
+                'goal': goal_maps,
+                'found_goal': int(len(id_lo_whwh_speci) > 0),
+                'wait': False,
+                'sem_map': BEV_map.local_map[0, 4:11, :, :].cpu().numpy()
+            }
+            agent.visualize(look_input)
+
+        if done: break
+    print(">>环视结束")
 
     agent_input = {}
     agent_input['map_pred'] = BEV_map.local_map[0, 0, :, :].cpu().numpy()
