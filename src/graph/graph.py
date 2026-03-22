@@ -744,17 +744,23 @@ Please provide the relationship you can determine from the image.
     def explore_remaining(self):
         G1 = self.matcher.G1
         G2 = self.matcher.G2
-        common_nodes = self.matcher.common_nodes
+        # common_nodes contains IDs from G1
+        common_nodes = list(self.matcher.common_nodes)
+        mapping = self.matcher.common_nodes_mapping
 
-        # Assign positions to the first two common nodes in the subgraph
-        for i, node_id in enumerate(common_nodes):
+        # Assign positions to the first two common nodes in the goal subgraph (G2)
+        # using their corresponding positions from the scene graph (G1)
+        valid_common_g2 = []
+        for i, node_id_g1 in enumerate(common_nodes):
             if i < 2:
-                G2.nodes[node_id]['position'] = G1.nodes[node_id]['position']
+                node_id_g2 = mapping[node_id_g1]
+                G2.nodes[node_id_g2]['position'] = G1.nodes[node_id_g1]['position']
+                valid_common_g2.append(node_id_g2)
             else:
                 break
 
         # Calculate relative positions within the subgraph
-        positions = self.matcher.calculate_relative_positions(G2, common_nodes)
+        positions = self.matcher.calculate_relative_positions(G2, valid_common_g2)
 
         # Predict positions of the remaining nodes
         position = self.matcher.predict_remaining_node_positions(common_nodes, positions, G1)
