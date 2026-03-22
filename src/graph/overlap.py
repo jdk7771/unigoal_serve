@@ -28,33 +28,55 @@ class GraphMatcher:
         self.G2 = G2
 
     def node_similarity(self, G1, G2):
-        nodes_G1 = set(G1.nodes)
-        nodes_G2 = set(G2.nodes)
-        common_nodes = nodes_G1.intersection(nodes_G2)
+        nodes_G1 = list(G1.nodes)
+        nodes_G2 = list(G2.nodes)
+        
+        # Use semantic mapping instead of exact ID intersection
+        common_mapping = self.find_common_nodes(G1, G2)
+        common_nodes_G1 = list(common_mapping.keys())
 
         if len(nodes_G2) == 0:
             node_overlap_ratio = 0.0
         else:
-            node_overlap_ratio = len(common_nodes) / len(nodes_G2)
+            # Ratio of unique labels in G2 that have been found in G1
+            matched_labels_G2 = set(common_mapping.values())
+            node_overlap_ratio = len(matched_labels_G2) / len(nodes_G2)
 
         degree_sim = 0.0
-        if common_nodes:
-            for node in common_nodes:
-                degree_G1 = G1.degree(node)
-                degree_G2 = G2.degree(node)
+        if common_nodes_G1:
+            for node_G1 in common_nodes_G1:
+                node_G2 = common_mapping[node_G1]
+                degree_G1 = G1.degree(node_G1)
+                degree_G2 = G2.degree(node_G2)
                 degree_diff = abs(degree_G1 - degree_G2)
                 max_degree = max(degree_G1, degree_G2)
                 if max_degree > 0:
                     degree_sim += 1.0 - (degree_diff / max_degree)
-            degree_sim /= len(common_nodes)
+            degree_sim /= len(common_nodes_G1)
 
         node_sim = (node_overlap_ratio + degree_sim) / 2.0
         return node_sim
 
     def edge_similarity(self, G1, G2):
-        edges_G1 = {frozenset((u, v, frozenset(data.items()))) for u, v, data in G1.edges(data=True)}
-        edges_G2 = {frozenset((u, v, frozenset(data.items()))) for u, v, data in G2.edges(data=True)}
-        common_edges = edges_G1.intersection(edges_G2)
+        # Map G1 edges to label-based edges to compare with G2
+        common_mapping = self.find_common_nodes(G1, G2)
+        
+        mapped_edges_G1 = set()
+        for u, v, data in G1.edges(data=True):
+            if u in common_mapping and v in common_mapping:
+                # Convert G1 instance IDs to their matched labels in G2
+                u_label = common_mapping[u]
+                v_label = common_mapping[v]
+                # Store as frozenset for unordered comparison if needed, 
+                # but G2 uses DiGraph, so order (source, target) matters.
+                edge_type = data.get('type', '')
+                mapped_edges_G1.add((u_label, v_label, edge_type))
+
+        edges_G2 = set()
+        for u, v, data in G2.edges(data=True):
+            edges_G2.add((u, v, data.get('type', '')))
+        
+        common_edges = mapped_edges_G1.intersection(edges_G2)
 
         if len(edges_G2) == 0:
             return 1.0
@@ -80,7 +102,10 @@ class GraphMatcher:
         G1 = self.G1
         G2 = self.G2
 
-        self.common_nodes = self.find_common_nodes(G1, G2)
+        self.common_nodes_mapping = self.find_common_nodes(G1, G2)
+        # Store G1 IDs for backward compatibility with explore_remaining etc.
+        self.common_nodes = set(self.common_nodes_mapping.keys())
+        
         node_sim = self.node_similarity(G1, G2)
         edge_sim = self.edge_similarity(G1, G2)
 
@@ -88,8 +113,18 @@ class GraphMatcher:
         return combined_sim
 
     def find_common_nodes(self, G1, G2):
-        """ Find common nodes between two graphs """
-        return set(G1.nodes).intersection(set(G2.nodes))
+        """ Find semantic matches between G1 (scenegraph with suffixes) and G2 (goalgraph labels) """
+        mapping = {}
+        for n1 in G1.nodes:
+            # Strip instance suffix (e.g., 'chair_0' -> 'chair')
+            label1 = n1.rsplit('_', 1)[0] if '_' in n1 else n1
+            for n2 in G2.nodes:
+                # Goal graph nodes are typically raw labels, but may also have suffixes
+                label2 = n2.rsplit('_', 1)[0] if '_' in n2 else n2
+                if label1.lower() == label2.lower():
+                    mapping[n1] = n2
+                    break
+        return mapping
 
     def calculate_relative_positions(self, graph, common_nodes):
         """ Calculate relative positions of nodes within a graph using LLM for unknown positions """
