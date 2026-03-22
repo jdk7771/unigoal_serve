@@ -128,52 +128,75 @@ class GraphMatcher:
 
     def calculate_relative_positions(self, graph, common_nodes):
         """ Calculate relative positions of nodes within a graph using LLM for unknown positions """
-        relative_positions = {}
+        positions = {}
         if not common_nodes:
-            return relative_positions
+            return positions
 
-        ref_node = list(common_nodes)[0]
+        # Ensure we only deal with unique G2 labels
+        unique_labels = []
+        for n in common_nodes:
+            if n not in unique_labels:
+                unique_labels.append(n)
+        
+        if not unique_labels:
+            return {}
+            
+        ref_label = unique_labels[0]
+        # Always put the first reference label at the local origin
+        positions[ref_label] = [0.0, 0.0]
 
-        for node in common_nodes:
-            if node == ref_node:
-                continue
-            prompt = f"Given the following information: {ref_node} and {node}. Please provide the relative position of {node} with respect to {ref_node} in the format [x, y]."
+        if len(unique_labels) == 1:
+            return positions
+
+        for label in unique_labels[1:]:
+            prompt = f"Given the following information: {ref_label} and {label}. Please provide the relative position of {label} with respect to {ref_label} in the format [x, y]."
             response = self.llm(prompt)
             try:
                 rel_pos_str = response.split("[")[1].split("]")[0]
                 rel_pos = [float(coord.strip()) for coord in rel_pos_str.split(",")]
-                key = tuple((node, ref_node))
-                relative_positions[key] = rel_pos
+                positions[label] = rel_pos
             except (IndexError, ValueError) as e:
+                # If LLM fails, we skip this label's relative position
                 pass
-
-        positions = {}
-        ref_node = next(iter(relative_positions))[1]
-        positions[ref_node] = [0, 0]
-        for node_c in relative_positions.keys():
-            positions[node_c[0]] = relative_positions[node_c]
 
         return positions
 
     def predict_remaining_node_positions(self, common_nodes, positions, scene_graph):
-        if len(common_nodes) < 2:
-            raise ValueError("At least two common nodes are required to predict the position of other nodes")
+        """
+        common_nodes: List of G1 instance IDs (e.g., ['chair_0', 'table_1'])
+        positions: Dict of G2 label positions (e.g., {'chair': [0,0], 'table': [1,1]})
+        """
+        mapping = self.common_nodes_mapping
+        
+        # We need at least two G1 nodes that map to DIFFERENT G2 labels to calculate rotation/scale
+        valid_ref_g1 = []
+        for n1 in common_nodes:
+            if n1 in mapping and mapping[n1] in positions:
+                # Check if this G2 label is unique in our ref list to avoid [0,0] vectors
+                if not any(mapping[n1] == mapping[prev] for prev in valid_ref_g1):
+                    valid_ref_g1.append(n1)
+        
+        if len(valid_ref_g1) < 2:
+            # Fallback: If we only have one anchor, we can't determine orientation/scale
+            # Just return the position of the first anchor or a center if available
+            if len(valid_ref_g1) == 1:
+                return list(scene_graph.nodes[valid_ref_g1[0]]['position'])
+            return [0, 0]
 
-        ref_points = sorted(list(common_nodes))[:2]
-        ref_point_1, ref_point_2 = ref_points
+        ref_point_1, ref_point_2 = valid_ref_g1[:2]
+        label_1, label_2 = mapping[ref_point_1], mapping[ref_point_2]
 
         ref_pos_1 = np.array(scene_graph.nodes[ref_point_1]['position'])
         ref_pos_2 = np.array(scene_graph.nodes[ref_point_2]['position'])
 
         ref_vec_scene = ref_pos_2 - ref_pos_1
-        try:
-            ref_vec_subgraph = np.array(positions[ref_point_1]) - np.array(positions[ref_point_2])
-        except KeyError as e:
-            print(f"KeyError: {e}")
-            return {}
+        ref_vec_subgraph = np.array(positions[label_2]) - np.array(positions[label_1])
 
         if np.allclose(ref_vec_subgraph, 0):
-            ref_vec_subgraph = np.array([1000., 1000.])
+            # This shouldn't happen with our 'different labels' check above, but for safety:
+            if len(valid_ref_g1) == 1:
+                return list(ref_pos_1)
+            return [0, 0]
 
         angle = np.arctan2(ref_vec_scene[1], ref_vec_scene[0]) - np.arctan2(ref_vec_subgraph[1], ref_vec_subgraph[0])
         rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
@@ -181,20 +204,18 @@ class GraphMatcher:
 
         scale_factor = np.linalg.norm(ref_vec_scene) / np.linalg.norm(ref_vec_subgraph)
 
-        predicted_positions = {}
-        for node, rel_pos in positions.items():
-            if node not in ref_points:
-                relative_position = np.array(rel_pos) - np.array(positions[ref_point_1])
+        predicted_positions = []
+        # Predict positions for all nodes in the goal graph that we haven't found yet
+        for label, rel_pos in positions.items():
+            if label not in [label_1, label_2]:
+                relative_position = np.array(rel_pos) - np.array(positions[label_1])
                 transformed_pos = np.dot(rotation_matrix, np.array(relative_position) * scale_factor) + ref_pos_1
-                predicted_positions[node] = transformed_pos
+                predicted_positions.append(transformed_pos)
 
         if len(predicted_positions) > 0:
-            rel_pos_list = []
-            for node, rel_pos in predicted_positions.items():
-                rel_pos_list.append(rel_pos)
-            position = sum(rel_pos_list) / len(rel_pos_list)
+            position = np.mean(predicted_positions, axis=0)
         else:
-            rel_pos_list = [ref_pos_1, ref_pos_2]
-            position = sum(rel_pos_list) / len(rel_pos_list)
-        position = list(position)
-        return position
+            # If no 'remaining' nodes, the best we can do is the midpoint or first point
+            position = (ref_pos_1 + ref_pos_2) / 2
+            
+        return list(position)
