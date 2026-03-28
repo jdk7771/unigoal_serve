@@ -1,0 +1,14 @@
+.vscode/
+.history/
+data/
+output*/
+pretrained_models/
+tmp/
+models_data/
+ollama/
+third_party/
+assets/*.gif
+assets/*.mp4
+*.log
+*.json.gz
+__pycache__/
