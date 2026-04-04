@@ -582,64 +582,63 @@ Please provide the relationship you can determine from the image.
                     # new_edges.append(new_edge)
 
     def update_edge(self):
-        print('    update_edge...')
-        old_nodes = []
+        print('    update_edge (VLM batch)...')
         new_nodes = []
         for i, node in enumerate(self.nodes):
             if node.is_new_node:
                 new_nodes.append(node)
                 node.is_new_node = False
-            else:
-                old_nodes.append(node)
+        
         if len(new_nodes) == 0:
             self.clear_line()
             return
-        # create the edge between new_node and old_node
-        new_edges = []
-        for i, new_node in enumerate(new_nodes):
-            for j, old_node in enumerate(old_nodes):
-                new_edge = Edge(new_node, old_node)
-                # new_node.edges.add(new_edge)
-                # old_node.edges.add(new_edge)
-                new_edges.append(new_edge)
-        # create the edge between new_node
-        for i, new_node1 in enumerate(new_nodes):
-            for j, new_node2 in enumerate(new_nodes[i + 1:]):
-                new_edge = Edge(new_node1, new_node2)
-                # new_node1.edges.add(new_edge)
-                # new_node2.edges.add(new_edge)
-                new_edges.append(new_edge)
-        # get all new_edges
-        new_edges = set()
-        for i, node in enumerate(self.nodes):
-            node_new_edges = set(filter(lambda edge: edge.relation is None, node.edges))
-            new_edges = new_edges | node_new_edges
-        new_edges = list(new_edges)
-        # get all relation proposals
-        if len(new_edges) > 0:
-            print(f'        LLM get all relation proposals...')
-            node_pairs = []
-            for new_edge in new_edges:
-                node_pairs.append(new_edge.node1.caption)
-                node_pairs.append(new_edge.node2.caption)
-            prompt = self.prompt_edge_proposal + '\n({}, {})' * len(new_edges)
-            prompt = prompt.format(*node_pairs)
-            relations = self.llm(prompt=prompt)
-            relations = relations.split('\n')
-            if len(relations) == len(new_edges):
-                for i, relation in enumerate(relations):
-                    new_edges[i].set_relation(relation)
-            self.clear_line()
-            # discriminate all relation proposals
-            for i, new_edge in enumerate(new_edges):
-                print(f'        discriminate_relation  {i}/{len(new_edges)}...')
-                if new_edge.relation == None:
-                    new_edge.delete()
-                self.clear_line()
-            # get edges set
-            # self.edges = set()
-            # for node in self.nodes:
-            #     self.edges.update(node.edges)
+            
+        print('        Extracting relations from images...')
+        images_to_process = set()
+        for node in new_nodes:
+            if node.object is not None and "image_idx" in node.object:
+                for img_idx in node.object["image_idx"]:
+                    images_to_process.add(img_idx)
+
+        for img_idx in images_to_process:
+            nodes_in_image = []
+            for node in self.nodes:
+                if node.object is not None and "image_idx" in node.object and img_idx in node.object["image_idx"]:
+                    nodes_in_image.append(node)
+                    
+            if len(nodes_in_image) < 2:
+                continue
+                
+            image_data = self.segment2d_results[img_idx]
+            image_rgb = Image.fromarray(image_data["image_rgb"])
+            
+            node_captions = list(set([n.caption.lower() for n in nodes_in_image]))
+            batch_prompt = f"In this image, I have identified the following objects: {', '.join(node_captions)}.\n"
+            batch_prompt += "Please describe all clear spatial relationships between any of these objects.\n"
+            batch_prompt += "Use the format: 'Object A and Object B: Object A is <relation type> Object B'.\n"
+            batch_prompt += "If no relationship is clear, do not mention it. Output one relationship per line."
+            
+            try:
+                response = self.vlm(batch_prompt, image_rgb)
+                response = response.lower()
+                relations = self.graphbuilder.get_relations(response, node_captions)
+                
+                for rel in relations:
+                    src_caption = rel['source']
+                    tgt_caption = rel['target']
+                    rel_type = rel['type']
+                    
+                    src_node = next((n for n in nodes_in_image if n.caption.lower() == src_caption), None)
+                    tgt_node = next((n for n in nodes_in_image if n.caption.lower() == tgt_caption), None)
+                    
+                    if src_node and tgt_node and src_node != tgt_node:
+                        edge_exists = any(e for e in src_node.edges if (e.node1 == tgt_node or e.node2 == tgt_node) and e.relation == rel_type)
+                        if not edge_exists:
+                            new_edge = Edge(src_node, tgt_node)
+                            new_edge.set_relation(rel_type)
+            except Exception as e:
+                print(f"        VLM relation extraction failed: {e}")
+
         self.clear_line()
 
     def update_group(self):
@@ -744,17 +743,23 @@ Please provide the relationship you can determine from the image.
     def explore_remaining(self):
         G1 = self.matcher.G1
         G2 = self.matcher.G2
-        common_nodes = self.matcher.common_nodes
+        # common_nodes contains IDs from G1
+        common_nodes = list(self.matcher.common_nodes)
+        mapping = self.matcher.common_nodes_mapping
 
-        # Assign positions to the first two common nodes in the subgraph
-        for i, node_id in enumerate(common_nodes):
+        # Assign positions to the first two common nodes in the goal subgraph (G2)
+        # using their corresponding positions from the scene graph (G1)
+        valid_common_g2 = []
+        for i, node_id_g1 in enumerate(common_nodes):
             if i < 2:
-                G2.nodes[node_id]['position'] = G1.nodes[node_id]['position']
+                node_id_g2 = mapping[node_id_g1]
+                G2.nodes[node_id_g2]['position'] = G1.nodes[node_id_g1]['position']
+                valid_common_g2.append(node_id_g2)
             else:
                 break
 
         # Calculate relative positions within the subgraph
-        positions = self.matcher.calculate_relative_positions(G2, common_nodes)
+        positions = self.matcher.calculate_relative_positions(G2, valid_common_g2)
 
         # Predict positions of the remaining nodes
         position = self.matcher.predict_remaining_node_positions(common_nodes, positions, G1)
