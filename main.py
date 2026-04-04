@@ -108,62 +108,8 @@ def main():
     goal_maps = np.zeros((args.local_width, args.local_height))
     goal_maps[global_goals[0], global_goals[1]] = 1
 
-    print("——————正在初始环视，构建二维地图和语义场景图")
-    graph.set_navigate_steps(0) 
-    num_rotations = int(360 // args.look_angle)
-    
-    for i in range(num_rotations):
-        obs, done, infos = envs.step({'action': 3})
-        
-        rgbd_raw = np.concatenate((obs['rgb'].astype(np.uint8), obs['depth']), axis=2).transpose(2, 0, 1)
-        rgbd, _ = agent.preprocess_obs(rgbd_raw)
-        agent.rgbd = rgbd
-        
-        BEV_map.mapping(rgbd, infos)
-        graph.set_observations(obs)
-        graph.set_navigate_steps(i) 
-        graph.update_scenegraph()
-        
-        if args.visualize:
-            id_lo_whwh_speci = [det for det in agent.pred_box if det[0] == agent.envs.gt_goal_idx]
-
-            BEV_map.local_map[0, 10, :, :] = 1e-5
-            sem_map_pred = BEV_map.local_map[0, 4:11, :, :].argmax(0).cpu().numpy()
-
-            look_input = {
-                'map_pred': BEV_map.local_map[0, 0, :, :].cpu().numpy(),
-                'exp_pred': BEV_map.local_map[0, 1, :, :].cpu().numpy(),
-                'pose_pred': BEV_map.planner_pose_inputs[0],
-                'goal': goal_maps,
-                'found_goal': int(len(id_lo_whwh_speci) > 0),
-                'wait': False,
-                'sem_map_pred': sem_map_pred
-            }
-            agent.visualize(look_input)
-
-        if done: break
-    print(">>环视结束")
-
     agent_input = {}
-    agent_input['map_pred'] = BEV_map.local_map[0, 0, :, :].cpu().numpy()
-    agent_input['exp_pred'] = BEV_map.local_map[0, 1, :, :].cpu().numpy()
-    agent_input['pose_pred'] = BEV_map.planner_pose_inputs[0]
-    agent_input['goal'] = goal_maps
-    agent_input['exp_goal'] = goal_maps * 1
-    agent_input['new_goal'] = 1
-    agent_input['found_goal'] = 0
-    agent_input['wait'] = wait_env or finished
-    agent_input['sem_map'] = BEV_map.local_map[0, 4:11, :, :
-                                        ].cpu().numpy()
-    if args.visualize:
-        BEV_map.local_map[0, 10, :, :] = 1e-5
-        agent_input['sem_map_pred'] = BEV_map.local_map[0, 4:11, :, :
-                                            ].argmax(0).cpu().numpy()
-
-    obs, rgbd, done, infos = agent.step(agent_input)
-    last_action = -1 # Initialize last_action
-
-
+    last_action = -1 
 
     while True:
         if finished == True:
@@ -172,6 +118,55 @@ def main():
         # global_step = (step // args.num_local_steps) % args.num_global_steps
         global_step = (step // args.num_local_steps)
         local_step = step % args.num_local_steps
+
+        # --- 修复点：确保每个 Episode 开始时都执行环视 ---
+        if step == 0:
+            print(f"——————正在执行 Episode {infos.get('episode_no', 0)} 的初始环视")
+            num_rotations = int(360 // args.look_angle)
+            for i in range(num_rotations):
+                obs, done, infos = envs.step({'action': 3})
+                rgbd_raw = np.concatenate((obs['rgb'].astype(np.uint8), obs['depth']), axis=2).transpose(2, 0, 1)
+                rgbd, _ = agent.preprocess_obs(rgbd_raw)
+                agent.rgbd = rgbd
+                
+                BEV_map.mapping(rgbd, infos)
+                graph.set_observations(obs)
+                graph.set_navigate_steps(i) 
+                graph.update_scenegraph()
+                
+                if args.visualize:
+                    id_lo_whwh_speci = [det for det in agent.pred_box if det[0] == agent.envs.gt_goal_idx]
+                    BEV_map.local_map[0, 10, :, :] = 1e-5
+                    sem_map_pred = BEV_map.local_map[0, 4:11, :, :].argmax(0).cpu().numpy()
+                    look_input = {
+                        'map_pred': BEV_map.local_map[0, 0, :, :].cpu().numpy(),
+                        'exp_pred': BEV_map.local_map[0, 1, :, :].cpu().numpy(),
+                        'pose_pred': BEV_map.planner_pose_inputs[0],
+                        'goal': np.zeros((args.local_width, args.local_height)), # 初始目标设为空
+                        'found_goal': int(len(id_lo_whwh_speci) > 0),
+                        'wait': False,
+                        'sem_map_pred': sem_map_pred
+                    }
+                    agent.visualize(look_input)
+                if done: break
+            print(">>环视结束")
+            
+            # 环视结束后，初始化第一次 agent 推理所需的输入
+            agent_input = {
+                'map_pred': BEV_map.local_map[0, 0, :, :].cpu().numpy(),
+                'exp_pred': BEV_map.local_map[0, 1, :, :].cpu().numpy(),
+                'pose_pred': BEV_map.planner_pose_inputs[0],
+                'goal': np.zeros((args.local_width, args.local_height)),
+                'exp_goal': np.zeros((args.local_width, args.local_height)),
+                'new_goal': 1,
+                'found_goal': 0,
+                'wait': wait_env or finished,
+                'sem_map': BEV_map.local_map[0, 4:11, :, :].cpu().numpy()
+            }
+            if args.visualize:
+                agent_input['sem_map_pred'] = sem_map_pred
+            
+            obs, rgbd, done, infos = agent.step(agent_input)
 
         if done:
             spl = infos['spl']

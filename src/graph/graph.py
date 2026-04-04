@@ -581,10 +581,14 @@ Please provide the relationship you can determine from the image.
                     # old_node.edges.add(new_edge)
                     # new_edges.append(new_edge)
 
-    def update_edge(self):
+    def update_edge(self, dist_threshold_m=3.0):
         print('    update_edge...')
         old_nodes = []
         new_nodes = []
+        
+        # 像素距离 = 米 * 100 / 分辨率(cm/pixel)
+        thresh_pixels = dist_threshold_m * 100 / self.map_resolution
+        
         for i, node in enumerate(self.nodes):
             if node.is_new_node:
                 new_nodes.append(node)
@@ -595,20 +599,19 @@ Please provide the relationship you can determine from the image.
             self.clear_line()
             return
         # create the edge between new_node and old_node
-        new_edges = []
         for i, new_node in enumerate(new_nodes):
             for j, old_node in enumerate(old_nodes):
-                new_edge = Edge(new_node, old_node)
-                # new_node.edges.add(new_edge)
-                # old_node.edges.add(new_edge)
-                new_edges.append(new_edge)
+                if new_node.center is not None and old_node.center is not None:
+                    dist = np.linalg.norm(np.array(new_node.center) - np.array(old_node.center))
+                    if dist < thresh_pixels:
+                        Edge(new_node, old_node)
         # create the edge between new_node
         for i, new_node1 in enumerate(new_nodes):
             for j, new_node2 in enumerate(new_nodes[i + 1:]):
-                new_edge = Edge(new_node1, new_node2)
-                # new_node1.edges.add(new_edge)
-                # new_node2.edges.add(new_edge)
-                new_edges.append(new_edge)
+                if new_node1.center is not None and new_node2.center is not None:
+                    dist = np.linalg.norm(np.array(new_node1.center) - np.array(new_node2.center))
+                    if dist < thresh_pixels:
+                        Edge(new_node1, new_node2)
         # get all new_edges
         new_edges = set()
         for i, node in enumerate(self.nodes):
@@ -617,29 +620,26 @@ Please provide the relationship you can determine from the image.
         new_edges = list(new_edges)
         # get all relation proposals
         if len(new_edges) > 0:
-            print(f'        LLM get all relation proposals...')
+            print(f'        LLM get all relation proposals for {len(new_edges)} pairs...')
             node_pairs = []
             for new_edge in new_edges:
                 node_pairs.append(new_edge.node1.caption)
                 node_pairs.append(new_edge.node2.caption)
             prompt = self.prompt_edge_proposal + '\n({}, {})' * len(new_edges)
             prompt = prompt.format(*node_pairs)
-            relations = self.llm(prompt=prompt)
-            relations = relations.split('\n')
-            if len(relations) == len(new_edges):
-                for i, relation in enumerate(relations):
-                    new_edges[i].set_relation(relation)
+            try:
+                relations = self.llm(prompt=prompt)
+                relations = relations.strip().split('\n')
+                if len(relations) == len(new_edges):
+                    for i, relation in enumerate(relations):
+                        new_edges[i].set_relation(relation.strip())
+            except Exception as e:
+                print(f"        LLM API error: {e}")
             self.clear_line()
             # discriminate all relation proposals
             for i, new_edge in enumerate(new_edges):
-                print(f'        discriminate_relation  {i}/{len(new_edges)}...')
                 if new_edge.relation == None:
                     new_edge.delete()
-                self.clear_line()
-            # get edges set
-            # self.edges = set()
-            # for node in self.nodes:
-            #     self.edges.update(node.edges)
         self.clear_line()
 
     def update_group(self):
