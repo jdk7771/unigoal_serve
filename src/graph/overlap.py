@@ -5,6 +5,7 @@ import numpy as np
 from scipy.spatial.distance import cosine
 from heapq import heappush, heappop
 from grakel import Graph, kernels
+import re
 
 
 class GraphMatcher:
@@ -30,7 +31,7 @@ class GraphMatcher:
     def node_similarity(self, G1, G2):
         nodes_G1 = list(G1.nodes)
         nodes_G2 = list(G2.nodes)
-        
+
         # Use semantic mapping instead of exact ID intersection
         common_mapping = self.find_common_nodes(G1, G2)
         common_nodes_G1 = list(common_mapping.keys())
@@ -126,75 +127,109 @@ class GraphMatcher:
                     break
         return mapping
 
-    def calculate_relative_positions(self, graph, common_nodes):
-        """ Calculate relative positions of nodes within a graph using LLM for unknown positions """
+    def calculate_relative_positions(self, graph):
+        """ Calculate relative positions of nodes within a graph (G2) using LLM for unknown positions """
         relative_positions = {}
-        if not common_nodes:
-            return relative_positions
+        nodes = list(graph.nodes)
+        if not nodes:
+            return {}
 
-        ref_node = list(common_nodes)[0]
+        ref_node = nodes[0]
 
-        for node in common_nodes:
+        for node in nodes:
             if node == ref_node:
                 continue
             prompt = f"Given the following information: {ref_node} and {node}. Please provide the relative position of {node} with respect to {ref_node} in the format [x, y]."
             response = self.llm(prompt)
             try:
-                rel_pos_str = response.split("[")[1].split("]")[0]
-                rel_pos = [float(coord.strip()) for coord in rel_pos_str.split(",")]
-                key = tuple((node, ref_node))
-                relative_positions[key] = rel_pos
-            except (IndexError, ValueError) as e:
+                # Using regex for more robust coordinate parsing
+                match = re.search(r'\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]', response)
+                if match:
+                    rel_pos = [float(match.group(1)), float(match.group(2))]
+                    key = tuple((node, ref_node))
+                    relative_positions[key] = rel_pos
+            except (IndexError, ValueError, AttributeError):
                 pass
 
         positions = {}
-        ref_node = next(iter(relative_positions))[1]
-        positions[ref_node] = [0, 0]
-        for node_c in relative_positions.keys():
-            positions[node_c[0]] = relative_positions[node_c]
+        if not relative_positions:
+            for node in nodes:
+                positions[node] = [0.0, 0.0]
+            return positions
+
+        # Reconstruct positions relative to ref_node (index 1 of the tuple)
+        first_key = next(iter(relative_positions))
+        actual_ref = first_key[1]
+        positions[actual_ref] = [0.0, 0.0]
+        for (node, ref), pos in relative_positions.items():
+            if ref == actual_ref:
+                positions[node] = pos
 
         return positions
 
-    def predict_remaining_node_positions(self, common_nodes, positions, scene_graph):
-        if len(common_nodes) < 2:
-            raise ValueError("At least two common nodes are required to predict the position of other nodes")
+    def predict_remaining_node_positions(self, mapping, positions, scene_graph):
+        """
+        Predict positions of unmatched nodes in G2 by anchoring them to matched nodes in G1 space.
+        mapping: {G1_ID: G2_ID}
+        positions: {G2_ID: [x, y]}
+        scene_graph: G1 DiGraph
+        """
+        if len(mapping) < 2:
+            return None
 
-        ref_points = sorted(list(common_nodes))[:2]
-        ref_point_1, ref_point_2 = ref_points
+        # Find two G1 nodes that map to distinct G2 nodes for establishing reference frame
+        distinct_matches = []
+        seen_g2 = set()
+        for g1_id, g2_id in mapping.items():
+            if g2_id in positions and g2_id not in seen_g2:
+                distinct_matches.append((g1_id, g2_id))
+                seen_g2.add(g2_id)
+            if len(distinct_matches) >= 2:
+                break
+        
+        if len(distinct_matches) < 2:
+            return None
 
-        ref_pos_1 = np.array(scene_graph.nodes[ref_point_1]['position'])
-        ref_pos_2 = np.array(scene_graph.nodes[ref_point_2]['position'])
+        (g1_1, g2_1), (g1_2, g2_2) = distinct_matches
 
-        ref_vec_scene = ref_pos_2 - ref_pos_1
         try:
-            ref_vec_subgraph = np.array(positions[ref_point_1]) - np.array(positions[ref_point_2])
-        except KeyError as e:
-            print(f"KeyError: {e}")
-            return {}
+            ref_pos_1_g1 = np.array(scene_graph.nodes[g1_1]['position'])
+            ref_pos_2_g1 = np.array(scene_graph.nodes[g1_2]['position'])
+        except KeyError:
+            return None
+
+        ref_vec_scene = ref_pos_2_g1 - ref_pos_1_g1
+        try:
+            ref_vec_subgraph = np.array(positions[g2_2]) - np.array(positions[g2_1])
+        except KeyError:
+            return None
 
         if np.allclose(ref_vec_subgraph, 0):
-            ref_vec_subgraph = np.array([1000., 1000.])
+            # If reference nodes in G2 are collapsed, fallback to average of G1 points
+            return list((ref_pos_1_g1 + ref_pos_2_g1) / 2.0)
 
+        # Calculate rotation and scale to transform G2 relative space into G1 physical space
         angle = np.arctan2(ref_vec_scene[1], ref_vec_scene[0]) - np.arctan2(ref_vec_subgraph[1], ref_vec_subgraph[0])
         rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
                                     [np.sin(angle), np.cos(angle)]])
 
-        scale_factor = np.linalg.norm(ref_vec_scene) / np.linalg.norm(ref_vec_subgraph)
+        norm_sub = np.linalg.norm(ref_vec_subgraph)
+        scale_factor = np.linalg.norm(ref_vec_scene) / norm_sub if norm_sub > 1e-6 else 1.0
 
-        predicted_positions = {}
-        for node, rel_pos in positions.items():
-            if node not in ref_points:
-                relative_position = np.array(rel_pos) - np.array(positions[ref_point_1])
-                transformed_pos = np.dot(rotation_matrix, np.array(relative_position) * scale_factor) + ref_pos_1
-                predicted_positions[node] = transformed_pos
+        all_matched_g2 = set(mapping.values())
+        predicted_positions = []
+        for g2_id, rel_pos in positions.items():
+            if g2_id not in all_matched_g2:
+                # Relative vector from anchor g2_1 to the unmatched node in G2 space
+                relative_pos_in_g2 = np.array(rel_pos) - np.array(positions[g2_1])
+                # Transform to G1 space: rotate -> scale -> translate
+                transformed_pos = np.dot(rotation_matrix, relative_pos_in_g2 * scale_factor) + ref_pos_1_g1
+                predicted_positions.append(transformed_pos)
 
-        if len(predicted_positions) > 0:
-            rel_pos_list = []
-            for node, rel_pos in predicted_positions.items():
-                rel_pos_list.append(rel_pos)
-            position = sum(rel_pos_list) / len(rel_pos_list)
-        else:
-            rel_pos_list = [ref_pos_1, ref_pos_2]
-            position = sum(rel_pos_list) / len(rel_pos_list)
-        position = list(position)
-        return position
+        if not predicted_positions:
+            # Fallback if no unmatched nodes found
+            return list((ref_pos_1_g1 + ref_pos_2_g1) / 2.0)
+
+        # Return the centroid of all predicted unmatched node positions
+        position = sum(predicted_positions) / len(predicted_positions)
+        return list(position)

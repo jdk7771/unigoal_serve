@@ -744,20 +744,13 @@ Please provide the relationship you can determine from the image.
     def explore_remaining(self):
         G1 = self.matcher.G1
         G2 = self.matcher.G2
-        common_nodes = self.matcher.common_nodes
+        mapping = self.matcher.common_nodes_mapping
 
-        # Assign positions to the first two common nodes in the subgraph
-        for i, node_id in enumerate(common_nodes):
-            if i < 2:
-                G2.nodes[node_id]['position'] = G1.nodes[node_id]['position']
-            else:
-                break
+        # Calculate relative positions within the subgraph G2
+        positions = self.matcher.calculate_relative_positions(G2)
 
-        # Calculate relative positions within the subgraph
-        positions = self.matcher.calculate_relative_positions(G2, common_nodes)
-
-        # Predict positions of the remaining nodes
-        position = self.matcher.predict_remaining_node_positions(common_nodes, positions, G1)
+        # Predict positions of the remaining nodes in G2 that are not in mapping
+        position = self.matcher.predict_remaining_node_positions(mapping, positions, G1)
         return position
 
     def reasonableness_correction(self):
