@@ -151,13 +151,29 @@ def main():
                 if done: break
             print(">>环视结束")
             
+            # --- 修复逻辑：初始环视后立即通过 Graph 获取第一个探索目标 ---
+            BEV_map.move_local_map()
+            graph.set_full_map(BEV_map.full_map)
+            graph.set_full_pose(BEV_map.full_pose)
+            
+            initial_goal = graph.explore()
+            if isinstance(initial_goal, (list, np.ndarray)):
+                # 转换到局部坐标系
+                lx = int(initial_goal[0] - BEV_map.local_map_boundary[0, 0])
+                ly = int(initial_goal[1] - BEV_map.local_map_boundary[0, 2])
+                if 0 <= lx < args.local_width and 0 <= ly < args.local_height:
+                    global_goals = [lx, ly]
+            
+            goal_maps = np.zeros((args.local_width, args.local_height))
+            goal_maps[global_goals[0], global_goals[1]] = 1
+            
             # 环视结束后，初始化第一次 agent 推理所需的输入
             agent_input = {
                 'map_pred': BEV_map.local_map[0, 0, :, :].cpu().numpy(),
                 'exp_pred': BEV_map.local_map[0, 1, :, :].cpu().numpy(),
                 'pose_pred': BEV_map.planner_pose_inputs[0],
-                'goal': np.zeros((args.local_width, args.local_height)),
-                'exp_goal': np.zeros((args.local_width, args.local_height)),
+                'goal': goal_maps,
+                'exp_goal': goal_maps.copy(),
                 'new_goal': 1,
                 'found_goal': 0,
                 'wait': wait_env or finished,

@@ -569,6 +569,10 @@ class UniGoal_Agent():
                     int(start[1] - y1) - 1:int(start[1] - y1) + 2] = 1
 
         traversible = self.add_boundary(traversible)
+        # 防御性修复：检查目标是否为空，避免 FMM 崩溃
+        if goal.sum() == 0:
+            return (start[0] - x1, start[1] - y1), True
+            
         goal = self.add_boundary(goal, value=0)
         visited = self.add_boundary(self.visited[gx1:gx2, gy1:gy2][x1:x2, y1:y2], value=0)
 
