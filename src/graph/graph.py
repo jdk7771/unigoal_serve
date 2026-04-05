@@ -867,9 +867,9 @@ Please provide the relationship you can determine from the image.
         
         # 3. 动态权重设置
         if self.navigate_steps < 100:
-            w_agent, w_ig, w_goal = 0.4, 0.5, 0.1 # 探索初期：侧重开图
+            w_agent, w_ig, w_goal = 0.7, 0.2, 0.1 # 探索初期：侧重开图
         else:
-            w_agent, w_ig, w_goal = 0.2, 0.2, 0.6 # 任务后期：侧重目标引导
+            w_agent, w_ig, w_goal = 0.6, 0.2, 0.2 # 任务后期：侧重目标引导
 
         scores = w_agent * agent_proximity_scores + w_ig * ig_scores
         
