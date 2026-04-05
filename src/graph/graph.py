@@ -690,7 +690,6 @@ Please provide the relationship you can determine from the image.
         self.mid_term_goal = sorted_group_nodes[-1].center
         
         # 匹配成功日志
-        print(f"[{self.navigate_steps}] ✅ Match: Found in {predict_room_node.caption} (Score: {sorted_group_nodes[-1].corr_score:.2f})")
         self.last_reasoning = f"Match: Found in {predict_room_node.caption} Score {sorted_group_nodes[-1].corr_score:.2f}"
         
         return self.mid_term_goal
