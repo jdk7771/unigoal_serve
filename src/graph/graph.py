@@ -199,6 +199,8 @@ class Graph():
         self.matcher = None
         self.is_navigation = is_navigation
         self.set_cfg()
+        self.min_edge_distance = getattr(args, 'min_edge_distance', 0.0)
+        self.max_edge_distance = getattr(args, 'max_edge_distance', 1.0)
         
         self.groundingdino_config_file = 'third_party/Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py'
         self.groundingdino_checkpoint = 'data/models/groundingdino_swint_ogc.pth'
@@ -598,17 +600,23 @@ Please provide the relationship you can determine from the image.
         new_edges = []
         for i, new_node in enumerate(new_nodes):
             for j, old_node in enumerate(old_nodes):
-                new_edge = Edge(new_node, old_node)
-                # new_node.edges.add(new_edge)
-                # old_node.edges.add(new_edge)
-                new_edges.append(new_edge)
+                dist_grid = np.linalg.norm(np.array(new_node.center) - np.array(old_node.center))
+                dist_m = dist_grid * self.map_resolution / 100.0
+                if self.min_edge_distance <= dist_m <= self.max_edge_distance:
+                    new_edge = Edge(new_node, old_node)
+                    # new_node.edges.add(new_edge)
+                    # old_node.edges.add(new_edge)
+                    new_edges.append(new_edge)
         # create the edge between new_node
         for i, new_node1 in enumerate(new_nodes):
             for j, new_node2 in enumerate(new_nodes[i + 1:]):
-                new_edge = Edge(new_node1, new_node2)
-                # new_node1.edges.add(new_edge)
-                # new_node2.edges.add(new_edge)
-                new_edges.append(new_edge)
+                dist_grid = np.linalg.norm(np.array(new_node1.center) - np.array(new_node2.center))
+                dist_m = dist_grid * self.map_resolution / 100.0
+                if self.min_edge_distance <= dist_m <= self.max_edge_distance:
+                    new_edge = Edge(new_node1, new_node2)
+                    # new_node1.edges.add(new_edge)
+                    # new_node2.edges.add(new_edge)
+                    new_edges.append(new_edge)
         # get all new_edges
         new_edges = set()
         for i, node in enumerate(self.nodes):
