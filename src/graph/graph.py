@@ -973,6 +973,7 @@ Please provide the relationship you can determine from the image.
         self.group_nodes = []
         self.init_room_nodes()
         self.edge_list = []
+        self.navigate_steps = 0
 
     def graph_corr(self, goal, graph):
         prompt = self.prompt_graph_corr_0.format(graph.center_node.caption, goal)
