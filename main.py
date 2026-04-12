@@ -97,18 +97,21 @@ def main():
     """
     环视阶段
     """
-    print("——————正在初始环视，构建二维地图和语义场景图")
-    graph.set_navigate_steps(0)
-    for i in range(int(360//args.look_angle)):
-        obs,done,infos = envs.step({'action':3})
-        rgbd_raw =np.concatenate((obs['rgb'].astype(np.uint8),obs['depth']), axis=2).transpose(2, 0, 1)
-        rgbd, _ = agent.preprocess_obs(rgbd_raw)
-        agent.rgbd = rgbd
-        BEV_map.mapping(rgbd, infos)
-        graph.set_observations(obs)
-        graph.update_scenegraph()
-        id_lo_whwh_speci = [det for det in agent.pred_box if det[0] == agent.envs.gt_goal_idx]
-    print(">>环视结束")
+    if args.use_look_around:
+        print("——————正在初始环视，构建二维地图和语义场景图")
+        graph.set_navigate_steps(0)
+        for i in range(int(360//args.look_angle)):
+            obs,done,infos = envs.step({'action':3})
+            rgbd_raw =np.concatenate((obs['rgb'].astype(np.uint8),obs['depth']), axis=2).transpose(2, 0, 1)
+            rgbd, _ = agent.preprocess_obs(rgbd_raw)
+            agent.rgbd = rgbd
+            BEV_map.mapping(rgbd, infos)
+            graph.set_observations(obs)
+            graph.update_scenegraph()
+            id_lo_whwh_speci = [det for det in agent.pred_box if det[0] == agent.envs.gt_goal_idx]
+        print(">>环视结束")
+    else:
+        print(">>跳过初始环视")
 
 
     global_goals = [args.local_width // 2, args.local_height // 2]
