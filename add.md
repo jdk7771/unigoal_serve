@@ -56,3 +56,20 @@
             self.last_reasoning = "None"
             self.navigate_steps = 0  # 新增：初始化 navigate_steps
     ```
+
+### B. ValueError: zero-size array to reduction operation maximum which has no identity
+- **问题原因**：在 `get_goal` 方法中，当所有候选边界点到智能体的距离都小于 `distance_threshold` 时，`distances_16` 及其对应的索引 `idx_16` 为空。这导致 `ig_scores` 也是一个空数组，调用 `ig_scores.max()` 时触发了 NumPy 的报错。
+- **修复方案**：
+    - 在计算 `ig_scores` 之前，先检查 `distances_16` 是否为空。如果为空，直接返回 `None`。
+    - 在调用 `ig_scores.max()` 之前增加 `ig_scores.size > 0` 的判断，增强鲁棒性。
+- **具体修改代码**：
+    ```python
+    # src/graph/graph.py
+    idx_16 = np.where(distances>=distance_threshold)
+    distances_16 = distances[idx_16]
+    if len(distances_16) == 0:  # 新增：空数组检查
+        return None
+    # ... 后续计算 ig_scores ...
+    if ig_scores.size > 0 and ig_scores.max() > 0: # 新增：size > 0 检查
+        ig_scores = ig_scores / ig_scores.max()
+    ```

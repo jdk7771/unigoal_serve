@@ -845,6 +845,10 @@ Please provide the relationship you can determine from the image.
         distance_threshold = 1.2
         idx_16 = np.where(distances>=distance_threshold)
         distances_16 = distances[idx_16]
+        
+        if len(distances_16) == 0:
+            return None
+            
         # 1. 基础距离分数 (Proximity to Agent) - 归一化到 0-1
         agent_proximity_scores = 1 - (np.clip(distances_16, 0, 10 + distance_threshold) - distance_threshold) / 10
         
@@ -860,14 +864,12 @@ Please provide the relationship you can determine from the image.
             ig = (fbe_np[r_min:r_max, c_min:c_max] == 0).sum()
             ig_scores.append(ig)
         ig_scores = np.array(ig_scores)
-        if ig_scores.max() > 0:
+        if ig_scores.size > 0 and ig_scores.max() > 0:
             ig_scores = ig_scores / ig_scores.max() # 归一化
             
         frontier_locations_16 = frontier_locations[idx_16]
         self.frontier_locations = frontier_locations
         self.frontier_locations_16 = frontier_locations_16
-        if len(distances_16) == 0:
-            return None
         num_16_frontiers = len(idx_16[0])  # 175
         
         # 3. 动态权重设置
