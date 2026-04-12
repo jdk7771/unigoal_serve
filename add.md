@@ -30,8 +30,19 @@
 - **计算效率**：边界点数量可能较多（通常 10-50 个），使用 numpy 的切片求和是高效的，不会引起卡顿。
 - **量化对齐**：IG 分数、距离分数、目标引导分数需要进行归一化（0-1），否则权重调节将失去意义。
 
-## 4. 修改步骤规划
-1. 修改 `src/graph/graph.py` 中的 `get_goal` 函数。
-2. 在计算 `distances_16_inverse` 之后，插入 IG 计算逻辑。
-3. 增加权重计算逻辑。
-4. 合并所有分数得出最终目标。
+## 4. 错误修复 (Bug Fixes)
+
+### A. AttributeError: 'Graph' object has no attribute 'navigate_steps'
+- **问题原因**：在 `main.py` 的初始环视阶段调用了 `graph.update_scenegraph()`，但此时 `graph.navigate_steps` 尚未初始化。
+- **修复方案**：
+    - 在 `src/graph/graph.py` 的 `Graph.__init__` 方法中初始化 `self.navigate_steps = 0`。
+    - 在 `main.py` 的初始环视循环中，可以显式设置 `graph.set_navigate_steps(0)`（可选，由于已经在 `__init__` 中初始化）。
+- **具体修改代码**：
+    ```python
+    # src/graph/graph.py
+    class Graph():
+        def __init__(self, args, is_navigation=True) -> None:
+            # ... 现有初始化代码 ...
+            self.last_reasoning = "None"
+            self.navigate_steps = 0  # 新增：初始化 navigate_steps
+    ```

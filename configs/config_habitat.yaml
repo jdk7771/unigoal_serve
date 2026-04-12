@@ -67,6 +67,8 @@ look_angle: 30
 num_sem_categories: 16
 map_size_cm: 3600
 map_resolution: 5
+min_edge_distance: 0.0
+max_edge_distance: 1.5
 
 #LLM and VLM
 llm_model: "llama3.2-vision"

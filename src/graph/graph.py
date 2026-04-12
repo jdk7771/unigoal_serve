@@ -258,6 +258,9 @@ Please provide the relationship you can determine from the image.
         self.extractor = DISK(max_num_keypoints=2048).eval().to(self.device)
         self.image_matcher = LightGlue(features='disk').eval().to(self.device)
         self.last_reasoning = "None"
+        self.navigate_steps = 0
+        self.min_edge_distance = getattr(args, 'min_edge_distance', 0.0)
+        self.max_edge_distance = getattr(args, 'max_edge_distance', 1.5)
 
     def set_cfg(self):
         cfg = {'dataset_config': PosixPath('tools/replica.yaml'), 'scene_id': 'room0', 'start': 0, 'end': -1, 'stride': 5, 'image_height': 680, 'image_width': 1200, 'gsa_variant': 'none', 'detection_folder_name': 'gsa_detections_${gsa_variant}', 'det_vis_folder_name': 'gsa_vis_${gsa_variant}', 'color_file_name': 'gsa_classes_${gsa_variant}', 'device': 'cuda', 'use_iou': True, 'spatial_sim_type': 'overlap', 'phys_bias': 0.0, 'match_method': 'sim_sum', 'semantic_threshold': 0.5, 'physical_threshold': 0.5, 'sim_threshold': 1.2, 'use_contain_number': False, 'contain_area_thresh': 0.95, 'contain_mismatch_penalty': 0.5, 'mask_area_threshold': 25, 'mask_conf_threshold': 0.95,
@@ -598,17 +601,19 @@ Please provide the relationship you can determine from the image.
         new_edges = []
         for i, new_node in enumerate(new_nodes):
             for j, old_node in enumerate(old_nodes):
-                new_edge = Edge(new_node, old_node)
-                # new_node.edges.add(new_edge)
-                # old_node.edges.add(new_edge)
-                new_edges.append(new_edge)
+                dist_grid = np.linalg.norm(np.array(new_node.center) - np.array(old_node.center))
+                dist_m = dist_grid * self.map_resolution / 100.0
+                if self.min_edge_distance <= dist_m <= self.max_edge_distance:
+                    new_edge = Edge(new_node, old_node)
+                    new_edges.append(new_edge)
         # create the edge between new_node
         for i, new_node1 in enumerate(new_nodes):
             for j, new_node2 in enumerate(new_nodes[i + 1:]):
-                new_edge = Edge(new_node1, new_node2)
-                # new_node1.edges.add(new_edge)
-                # new_node2.edges.add(new_edge)
-                new_edges.append(new_edge)
+                dist_grid = np.linalg.norm(np.array(new_node1.center) - np.array(new_node2.center))
+                dist_m = dist_grid * self.map_resolution / 100.0
+                if self.min_edge_distance <= dist_m <= self.max_edge_distance:
+                    new_edge = Edge(new_node1, new_node2)
+                    new_edges.append(new_edge)
         # get all new_edges
         new_edges = set()
         for i, node in enumerate(self.nodes):
