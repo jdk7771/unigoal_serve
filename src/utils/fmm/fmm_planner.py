@@ -87,6 +87,10 @@ class FMMPlanner():
         traversible_ma = ma.masked_values(self.traversible * 1, 0)
         goal_x, goal_y = int(goal[0] / (self.scale * 1.)), \
                          int(goal[1] / (self.scale * 1.))
+        
+        # Clip goal coordinates within the map boundaries for safety
+        goal_x = np.clip(goal_x, 0, self.traversible.shape[0] - 1)
+        goal_y = np.clip(goal_y, 0, self.traversible.shape[1] - 1)
 
         if self.traversible[goal_x, goal_y] == 0.:
             goal_x, goal_y = self._find_nearest_goal([goal_x, goal_y])

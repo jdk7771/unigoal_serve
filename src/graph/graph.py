@@ -824,6 +824,11 @@ Please provide the relationship you can determine from the image.
         traversible, start = self.get_traversible(self.full_map.cpu().numpy()[0, 0, ::-1], input_pose)
         planner = FMMPlanner(traversible)
         state = [start[0] + 1, start[1] + 1]
+        
+        # Clip state coordinates to be within traversible map boundaries
+        state[0] = np.clip(state[0], 0, traversible.shape[0] - 1)
+        state[1] = np.clip(state[1], 0, traversible.shape[1] - 1)
+        
         planner.set_goal(state)
         fmm_dist = planner.fmm_dist[::-1]
         frontier_locations += 1
@@ -849,6 +854,11 @@ Please provide the relationship you can determine from the image.
 
             planner = FMMPlanner(traversible)
             state = [goal[0] + 1, goal[1] + 1]
+            
+            # Clip state to be within map boundaries
+            state[0] = np.clip(state[0], 0, traversible.shape[0] - 1)
+            state[1] = np.clip(state[1], 0, traversible.shape[1] - 1)
+            
             planner.set_goal(state)
             fmm_dist = planner.fmm_dist[::-1]
             distances = fmm_dist[frontier_locations[:,0],frontier_locations[:,1]] / 20
