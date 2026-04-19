@@ -136,9 +136,9 @@ class InstanceImageGoal_Env:
         """Function to take an action in the environment.
 
         Args:
-            action (dict):
-                dict with following keys:
-                    'action' (int): 0: stop, 1: forward, 2: left, 3: right
+            action (dict or int):
+                if dict, it should have key 'action' (int)
+                0: stop, 1: forward, 2: left, 3: right
 
         Returns:
             obs (ndarray): RGBD observations (4 x H x W)
@@ -147,7 +147,12 @@ class InstanceImageGoal_Env:
             info (dict): contains timestep, pose, goal category and
                          evaluation metric info
         """
-        if action == 0:
+        if isinstance(action, dict):
+            action_int = action['action']
+        else:
+            action_int = action
+
+        if action_int == 0:
             self.stopped = True
 
         obs = self._env.step(action)

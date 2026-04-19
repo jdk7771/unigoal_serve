@@ -419,12 +419,7 @@ class UniGoal_Agent():
             if done:
                 # Preserve the trace of the episode that just finished
                 self.last_episode_trace = self.step_trace.copy()
-                # IMPORTANT: Copy final info of the ENDED episode
-                final_info = self.envs.info.copy()
-                # Return new state but OLD episode's final info for logging
-                new_obs, new_rgbd, new_info = self.reset()
-                return new_obs, new_rgbd, done, final_info
-
+            
             return obs, rgbd, done, self.envs.info
 
         else:
