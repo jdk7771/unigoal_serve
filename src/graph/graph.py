@@ -199,6 +199,9 @@ class Graph():
         self.matcher = None
         self.is_navigation = is_navigation
         self.set_cfg()
+
+        self.use_distanage = getattr(args, 'use_distanage', False)
+        self.dist_threshold = getattr(args, 'dist_threshold', 3.0)
         
         self.groundingdino_config_file = 'third_party/Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py'
         self.groundingdino_checkpoint = 'data/models/groundingdino_swint_ogc.pth'
@@ -594,10 +597,21 @@ Please provide the relationship you can determine from the image.
         if len(new_nodes) == 0:
             self.clear_line()
             return
+
+        # 预先计算像素阈值
+        threshold_px = self.dist_threshold * 100 / self.map_resolution
+
         # create the edge between new_node and old_node
         new_edges = []
         for i, new_node in enumerate(new_nodes):
             for j, old_node in enumerate(old_nodes):
+                if self.use_distanage:
+                    if new_node.center is None or old_node.center is None:
+                        continue
+                    dist = np.linalg.norm(np.array(new_node.center) - np.array(old_node.center))
+                    if dist > threshold_px:
+                        continue
+
                 new_edge = Edge(new_node, old_node)
                 # new_node.edges.add(new_edge)
                 # old_node.edges.add(new_edge)
@@ -605,6 +619,13 @@ Please provide the relationship you can determine from the image.
         # create the edge between new_node
         for i, new_node1 in enumerate(new_nodes):
             for j, new_node2 in enumerate(new_nodes[i + 1:]):
+                if self.use_distanage:
+                    if new_node1.center is None or new_node2.center is None:
+                        continue
+                    dist = np.linalg.norm(np.array(new_node1.center) - np.array(new_node2.center))
+                    if dist > threshold_px:
+                        continue
+
                 new_edge = Edge(new_node1, new_node2)
                 # new_node1.edges.add(new_edge)
                 # new_node2.edges.add(new_edge)

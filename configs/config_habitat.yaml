@@ -68,6 +68,8 @@ use_lookaround: true
 num_sem_categories: 16
 map_size_cm: 3600
 map_resolution: 5
+use_distanage: true
+dist_threshold: 3.0
 
 #LLM and VLM
 llm_model: "llama3.2-vision"
