@@ -124,7 +124,7 @@ def main():
         if step == 0:
             if getattr(args, 'use_lookaround', True):
                 print(f"——————正在执行 Episode {infos.get('episode_no', 0)} 的初始环视")
-                num_rotations = int(360 // args.look_angle)
+                num_rotations = int(360 // args.turn_angle)
                 for i in range(num_rotations):
                     obs, done, infos = envs.step({'action': 3})
                     rgbd_raw = np.concatenate((obs['rgb'].astype(np.uint8), obs['depth']), axis=2).transpose(2, 0, 1)
