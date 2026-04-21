@@ -859,16 +859,53 @@ Please provide the relationship you can determine from the image.
         distance_threshold = 1.2
         idx_16 = np.where(distances>=distance_threshold)
         distances_16 = distances[idx_16]
-        distances_16_inverse = 10 - (np.clip(distances_16, 0, 10 + distance_threshold) - distance_threshold)
+        
+        # 1. 基础距离分数 (Proximity to Agent) - 归一化到 0-1
+        agent_proximity_scores = 1 - (np.clip(distances_16, 0, 10 + distance_threshold) - distance_threshold) / 10
+        
+        # 2. 计算信息增益 (Information Gain, IG)
+        use_ig_weight = getattr(self.args, 'use_ig_weight', False)
+        if use_ig_weight:
+            ig_scores = []
+            H, W = fbe_map.shape
+            R = 30 # 搜索半径 (约 1.5m)
+            fbe_np = fbe_map.cpu().numpy() if hasattr(fbe_map, "cpu") else fbe_map
+            for loc in frontier_locations[idx_16]:
+                r, c = int(loc[0]), int(loc[1])
+                r_min, r_max = max(0, r - R), min(H, r + R)
+                c_min, c_max = max(0, c - R), min(W, c + R)
+                ig = (fbe_np[r_min:r_max, c_min:c_max] == 0).sum()
+                ig_scores.append(ig)
+            ig_scores = np.array(ig_scores)
+            if len(ig_scores) > 0 and ig_scores.max() > 0:
+                ig_scores = ig_scores / ig_scores.max() # 归一化
+            else:
+                ig_scores = np.zeros_like(distances_16)
+        else:
+            ig_scores = np.zeros_like(distances_16)
+
         frontier_locations_16 = frontier_locations[idx_16]
         self.frontier_locations = frontier_locations
         self.frontier_locations_16 = frontier_locations_16
         if len(distances_16) == 0:
             return None
-        num_16_frontiers = len(idx_16[0])  # 175
-        scores = np.zeros((num_16_frontiers))
         
-        scores += distances_16_inverse
+        # 3. 动态权重设置
+        use_dynamic_weight = getattr(self.args, 'use_dynamic_weight', False)
+        if use_dynamic_weight:
+            if self.navigate_steps < 100:
+                w_agent, w_ig, w_goal = 0.7, 0.2, 0.1 # 探索初期：侧重开图
+            else:
+                w_agent, w_ig, w_goal = 0.6, 0.2, 0.2 # 任务后期：侧重目标引导
+        else:
+            # 默认权重
+            w_agent, w_ig, w_goal = (0.5, 0.3, 0.2) if use_ig_weight else (0.7, 0.0, 0.3)
+        
+        if not use_ig_weight:
+            w_agent += w_ig
+            w_ig = 0.0
+
+        scores = w_agent * agent_proximity_scores + w_ig * ig_scores
         
         if isinstance(goal, list) or isinstance(goal, np.ndarray):
             goal = list(goal)
@@ -882,13 +919,13 @@ Please provide the relationship you can determine from the image.
             
             planner.set_goal(state)
             fmm_dist = planner.fmm_dist[::-1]
-            distances = fmm_dist[frontier_locations[:,0],frontier_locations[:,1]] / 20
+            distances_target = fmm_dist[frontier_locations[:,0],frontier_locations[:,1]] / 20
             
-            distances_16 = distances[idx_16]
-            distances_16_inverse = 1 - (np.clip(distances_16, 0, 10 + distance_threshold) - distance_threshold) / 10
-            if len(distances_16) == 0:
+            distances_target_16 = distances_target[idx_16]
+            goal_proximity_scores = 1 - (np.clip(distances_target_16, 0, 10 + distance_threshold) - distance_threshold) / 10
+            if len(distances_target_16) == 0:
                 return None
-            scores += distances_16_inverse
+            scores += w_goal * goal_proximity_scores
 
         idx_16_max = idx_16[0][np.argmax(scores)]
         goal = frontier_locations[idx_16_max] - 1

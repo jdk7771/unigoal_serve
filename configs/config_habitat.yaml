@@ -70,6 +70,8 @@ map_size_cm: 3600
 map_resolution: 5
 use_distanage: true
 dist_threshold: 3.0
+use_ig_weight: true
+use_dynamic_weight: true
 
 #LLM and VLM
 llm_model: "llama3.2-vision"
