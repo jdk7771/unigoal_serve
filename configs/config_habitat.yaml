@@ -76,6 +76,8 @@ use_dynamic_weight: true
 #LLM and VLM
 llm_model: "llama3.2-vision"
 vlm_model: "llama3.2-vision"
+llm_model: "llama3.2"
+vlm_model: "qwen2.5vl:3b"
 api_key: "ollama"
 base_url: "http://localhost:11435/v1/"
 
