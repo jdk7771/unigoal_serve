@@ -34,8 +34,9 @@ class GoalGraphDecomposer:
         prompt = (f"Given the following graph, decompose it into a set of subgraphs where each subgraph contains strongly related nodes. "
                   f"Output the subgraphs in the same format as the input, with each subgraph having its own 'nodes' and 'edges' list. "
                   f"The format should be: {{'subgraph_1': {{'nodes': [{{'id': 'node_id'}}], 'edges': [{{'source': 'source_node_id', 'target': 'target_node_id', 'type': 'relation_type'}}]}} , 'subgraph_2': {{...}}, ...}}. "
-                  f"CRITICAL: 1. Every node in 'nodes' MUST be a dictionary with an 'id' key (e.g., {{'id': 'node_id'}}). "
-                  f"2. Every edge in 'edges' MUST be a dictionary with 'source', 'target', and 'type' keys. DO NOT omit any field. "
+                  f"CRITICAL: 1. Every node in 'nodes' MUST be a dictionary with an 'id' key. "
+                  f"2. Every edge in 'edges' MUST be a dictionary with 'source', 'target', and 'type' keys. "
+                  f"3. Every 'subgraph_x' value MUST be a DICTIONARY. DO NOT use strings or descriptions as values. "
                   f"Avoid including weakly related or unrelated nodes in the same subgraph. "
                   f"Here is the graph to decompose: {self.graph_to_text(goalgraph)}")
 
