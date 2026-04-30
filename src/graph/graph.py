@@ -894,15 +894,16 @@ Please provide the relationship you can determine from the image.
         use_dynamic_weight = getattr(self.args, 'use_dynamic_weight', False)
         if use_dynamic_weight:
             if self.navigate_steps < 300:
-                w_agent, w_ig, w_goal = 0.8, 0.15, 0.05 # 探索初期：侧重开图
+                w_agent, w_ig, w_goal = 0.75, 0.20, 0.05 # 探索初期：侧重开图
             else:
                 w_agent, w_ig, w_goal = 0.75, 0.15, 0.10 # 任务后期：侧重目标引导
         else:
             # 默认权重
-            w_agent, w_ig, w_goal = (0.65, 0.15, 0.2) if use_ig_weight else (0.65, 0.0, 0.35)
+            w_agent, w_ig, w_goal = (0.75, 0.15, 0.1) if use_ig_weight else (0.75, 0.0, 0.25)
         
         if not use_ig_weight:
-            w_agent += w_ig
+            w_agent += w_ig - 0.1
+            w_goal += 0.1
             w_ig = 0.0
 
         scores = w_agent * agent_proximity_scores + w_ig * ig_scores
