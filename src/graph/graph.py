@@ -893,13 +893,13 @@ Please provide the relationship you can determine from the image.
         # 3. 动态权重设置
         use_dynamic_weight = getattr(self.args, 'use_dynamic_weight', False)
         if use_dynamic_weight:
-            if self.navigate_steps < 100:
-                w_agent, w_ig, w_goal = 0.7, 0.2, 0.1 # 探索初期：侧重开图
+            if self.navigate_steps < 300:
+                w_agent, w_ig, w_goal = 0.8, 0.15, 0.05 # 探索初期：侧重开图
             else:
-                w_agent, w_ig, w_goal = 0.6, 0.2, 0.2 # 任务后期：侧重目标引导
+                w_agent, w_ig, w_goal = 0.75, 0.15, 0.10 # 任务后期：侧重目标引导
         else:
             # 默认权重
-            w_agent, w_ig, w_goal = (0.5, 0.3, 0.2) if use_ig_weight else (0.7, 0.0, 0.3)
+            w_agent, w_ig, w_goal = (0.65, 0.15, 0.2) if use_ig_weight else (0.65, 0.0, 0.35)
         
         if not use_ig_weight:
             w_agent += w_ig

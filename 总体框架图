@@ -1,0 +1,32 @@
+# UniGoal 零样本导航：双图匹配决策框架图提示词
+
+## 核心设计意图
+该图重点展示系统如何通过“目标图”与“场景图”的对齐来进行推理和决策。视觉风格采用 **等距 3D 逻辑架构图 (Isometric Tech-Logic Diagram)**，背景纯净，线条极具科技感。
+
+---
+
+## DALL-E 3 专用提示词 (支持中文渲染)
+
+**Prompt:** 
+A professional 3D isometric technical architecture diagram for an AI navigation system. The diagram shows the logical flow of "Graph-based Matching and Decision Making":
+
+1. **Top-Left: 目标图构建 (Goal Graph Construction).** An image of a blue cup and text "Find the cup on the table" are processed into a floating digital graph with nodes (Cup, Table) and an edge labeled "On".
+2. **Top-Right: 实时场景建图 (Real-time Scene Graphing).** A mobile robot scans a room, creating a growing graph of detected objects (Sofa, Cabinet, Counter) with spatial relations like "Next to".
+3. **Center: 语义图匹配与推理 (Semantic Graph Matching & Reasoning).** The Goal Graph and Scene Graph are superimposed. A glowing brain icon (LLM) uses dashed lines to link them. Labels say "跨模态语义对齐" (Cross-modal Alignment) and "常识概率推断" (Common-sense Inference).
+4. **Bottom: 导航决策执行 (Navigation Decision & Execution).** Based on the match, a heatmap appears on a 2D grid map. A robot follows a glowing green path labeled "FMM 路径规划" (FMM Path Planning) towards a target marked "最终语义决策点" (Final Semantic Decision Point).
+
+**Style:** High-tech, blueprint aesthetics, soft blue and violet glow, minimalist white background, 8k resolution, crisp Chinese text rendering.
+
+---
+
+## 绘图与标注建议：
+1. **对比色设计**：
+    - **目标图** 使用金色或橙色线条（代表意图/任务）。
+    - **场景图** 使用冷蓝色线条（代表现实/观测）。
+    - **匹配成功区域** 使用绿色高亮。
+2. **关键文字位置**：
+    - 左侧标题：目标语义解析
+    - 右侧标题：环境拓扑感知
+    - 中间标题：知识驱动推理
+    - 底部标题：自主规划执行
+3. **工具推荐**：使用 **DALL-E 3** 以获得最准确的中文标签渲染。
