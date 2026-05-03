@@ -13,46 +13,85 @@ class GoalGraphDecomposer:
         return graph
 
     def clean_edges(self, subgraphs):
+        if not isinstance(subgraphs, dict):
+            return
         for subgraph in subgraphs.values():
-            if 'nodes' not in subgraph:
+            if not isinstance(subgraph, dict):
+                continue
+            # Ensure nodes and edges keys exist and are lists
+            if 'nodes' not in subgraph or not isinstance(subgraph['nodes'], list):
                 subgraph['nodes'] = []
-            if 'edges' not in subgraph:
+            if 'edges' not in subgraph or not isinstance(subgraph['edges'], list):
                 subgraph['edges'] = []
-            node_ids = {node['id'] for node in subgraph['nodes']}
-            subgraph['edges'] = [edge for edge in subgraph['edges'] if edge['source'] in node_ids and edge['target'] in node_ids]
+            
+            # Filter and keep only valid nodes
+            valid_nodes = []
+            node_ids = set()
+            for node in subgraph['nodes']:
+                if isinstance(node, dict) and 'id' in node:
+                    valid_nodes.append(node)
+                    node_ids.add(node['id'])
+            subgraph['nodes'] = valid_nodes
+
+            # Filter and keep only valid edges that link existing nodes
+            valid_edges = []
+            for edge in subgraph['edges']:
+                if isinstance(edge, dict) and 'source' in edge and 'target' in edge:
+                    if edge['source'] in node_ids and edge['target'] in node_ids:
+                        valid_edges.append(edge)
+            subgraph['edges'] = valid_edges
 
     def graph_to_text(self, graph):
-        if 'nodes' not in graph:
-            graph['nodes'] = []
-        if 'edges' not in graph:
-            graph['edges'] = []
-        nodes = ', '.join([node['id'] for node in graph['nodes']])
-        edges = ', '.join([f"{edge['source']} {edge['type']} {edge['target']}" for edge in graph['edges']])
+        if not isinstance(graph, dict):
+            return ""
+        nodes_list = graph.get('nodes', [])
+        edges_list = graph.get('edges', [])
+        
+        nodes = ', '.join([node['id'] for node in nodes_list if isinstance(node, dict) and 'id' in node])
+        edges = ', '.join([f"{edge['source']} {edge['type']} {edge['target']}" 
+                          for edge in edges_list 
+                          if isinstance(edge, dict) and 'source' in edge and 'target' in edge and 'type' in edge])
         return f"Nodes: {nodes}. Edges: {edges}."
 
     def goal_decomposition(self, goalgraph=None):
-        prompt = (f"Given the following graph, decompose it into a set of subgraphs where each subgraph contains strongly related nodes. "
-                  f"Output the subgraphs in the same format as the input, with each subgraph having its own 'nodes' and 'edges' list. "
-                  f"The format should be: {{'subgraph_1': {{'nodes': [{{'id': 'node_id'}}], 'edges': [{{'source': 'source_node_id', 'target': 'target_node_id', 'type': 'relation_type'}}]}} , 'subgraph_2': {{...}}, ...}}. "
-                  f"CRITICAL: 1. Every node in 'nodes' MUST be a dictionary with an 'id' key. "
-                  f"2. Every edge in 'edges' MUST be a dictionary with 'source', 'target', and 'type' keys. "
-                  f"3. Every 'subgraph_x' value MUST be a DICTIONARY. DO NOT use strings or descriptions as values. "
-                  f"Avoid including weakly related or unrelated nodes in the same subgraph. "
-                  f"Here is the graph to decompose: {self.graph_to_text(goalgraph)}")
+        prompt = (f"Task: Decompose the following graph into subgraphs where each subgraph contains strongly related nodes.\n"
+                  f"Output Format: Return ONLY a valid JSON object. No preamble, no explanation.\n"
+                  f"JSON Schema:\n"
+                  f"{{\n"
+                  f"  \"subgraph_1\": {{\n"
+                  f"    \"nodes\": [{{ \"id\": \"node_id\" }}],\n"
+                  f"    \"edges\": [{{ \"source\": \"id1\", \"target\": \"id2\", \"type\": \"relation\" }}]\n"
+                  f"  }},\n"
+                  f"  ...\n"
+                  f"}}\n"
+                  f"Constraints:\n"
+                  f"1. Every node MUST be a dictionary with an 'id' key.\n"
+                  f"2. Every edge MUST be a dictionary with 'source', 'target', and 'type' keys.\n"
+                  f"3. DO NOT use strings as subgraph values. Use the specified JSON structure.\n\n"
+                  f"Input Graph: {self.graph_to_text(goalgraph)}")
 
         max_attempts = 10
         attempts = 0
         while attempts < max_attempts:
             response = self.llm(prompt)
+            
+            # Pre-processing: Extract JSON if LLM wraps it in markdown
+            clean_response = response
+            if "```json" in response:
+                clean_response = response.split("```json")[1].split("```")[0].strip()
+            elif "```" in response:
+                clean_response = response.split("```")[1].split("```")[0].strip()
 
             try:
-                self.goalgraph_decomposed = json.loads(response)
+                self.goalgraph_decomposed = json.loads(clean_response)
+                # Defensive cleaning
                 self.clean_edges(self.goalgraph_decomposed)
                 break
-            except json.JSONDecodeError:
+            except Exception:
                 attempts += 1
 
         if attempts == max_attempts:
+            # Fallback: if all attempts fail, use the whole graph as one subgraph
             self.goalgraph_decomposed = {'subgraph_1': goalgraph}
 
         return self.goalgraph_decomposed
