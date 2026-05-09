@@ -56,8 +56,8 @@ class GraphBuilder:
 
     def build_graph(self, objects, relations):
         graph = {
-            'nodes': [{'id': obj} for obj in objects],
-            'edges': [{'source': r['source'], 'target': r['target'], 'type': r['type']} for r in relations]
+            'nodes': [{'id': str(obj)} for obj in objects],
+            'edges': [{'source': str(r['source']), 'target': str(r['target']), 'type': r['type']} for r in relations]
         }
         return graph
 

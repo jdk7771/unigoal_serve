@@ -7,8 +7,8 @@ class GoalGraphDecomposer:
 
     def build_graph(self, objects, relations):
         graph = {
-            'nodes': [{'id': obj} for obj in objects],
-            'edges': [{'source': r['source'], 'target': r['target'], 'type': r['type']} for r in relations]
+            'nodes': [{'id': str(obj)} for obj in objects],
+            'edges': [{'source': str(r['source']), 'target': str(r['target']), 'type': r['type']} for r in relations]
         }
         return graph
 
@@ -24,19 +24,22 @@ class GoalGraphDecomposer:
             if 'edges' not in subgraph or not isinstance(subgraph['edges'], list):
                 subgraph['edges'] = []
             
-            # Filter and keep only valid nodes
+            # Filter and keep only valid nodes (normalize id to str)
             valid_nodes = []
             node_ids = set()
             for node in subgraph['nodes']:
                 if isinstance(node, dict) and 'id' in node:
+                    node['id'] = str(node['id'])
                     valid_nodes.append(node)
                     node_ids.add(node['id'])
             subgraph['nodes'] = valid_nodes
 
-            # Filter and keep only valid edges that link existing nodes
+            # Filter and keep only valid edges that link existing nodes (normalize source/target to str)
             valid_edges = []
             for edge in subgraph['edges']:
                 if isinstance(edge, dict) and 'source' in edge and 'target' in edge:
+                    edge['source'] = str(edge['source'])
+                    edge['target'] = str(edge['target'])
                     if edge['source'] in node_ids and edge['target'] in node_ids:
                         valid_edges.append(edge)
             subgraph['edges'] = valid_edges
