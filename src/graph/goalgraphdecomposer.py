@@ -47,8 +47,8 @@ class GoalGraphDecomposer:
         nodes_list = graph.get('nodes', [])
         edges_list = graph.get('edges', [])
         
-        nodes = ', '.join([node['id'] for node in nodes_list if isinstance(node, dict) and 'id' in node])
-        edges = ', '.join([f"{edge['source']} {edge['type']} {edge['target']}" 
+        nodes = ', '.join([str(node['id']) for node in nodes_list if isinstance(node, dict) and 'id' in node])
+        edges = ', '.join([f"{edge['source']} {edge['type']} {edge['target']}"
                           for edge in edges_list 
                           if isinstance(edge, dict) and 'source' in edge and 'target' in edge and 'type' in edge])
         return f"Nodes: {nodes}. Edges: {edges}."
